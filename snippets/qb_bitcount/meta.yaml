@@ -16,7 +16,7 @@ complexity:
 spec: trailing_string       # Spezifikation steht als String am Dateiende
 tests:
   origin: generated_from_json_testcases
-  timeout_s: 5
+  timeout_s: 2               # Tests sind trivial; der Defekt erzeugt eine Endlosschleife
 defects:
   # quixbugs_class: Klasse aus Tabelle 1 des QuixBugs-Papers; die Zuordnung zum Programm ist aus dem Diff zur korrigierten Version abgeleitet (das Paper nennt sie nicht).
   - id: D1

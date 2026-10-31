@@ -16,7 +16,7 @@ from pathlib import Path
 from judge_lab.snippets import Snippet
 
 # Großzügig gegenüber timeout_s, weil der Start von pytest selbst Zeit kostet.
-TIMEOUT_FACTOR = 2
+TIMEOUT_FACTOR = 4
 
 
 @dataclass(frozen=True)
