@@ -1,0 +1,29 @@
+# Ground Truth für ein QuixBugs-Programm. Wird nie an ein LLM gesendet.
+id: qb_quicksort
+title: QuickSort
+code_file: quicksort.py
+source:
+  name: QuixBugs
+  url: https://github.com/jkoppel/QuixBugs
+  file: python_programs/quicksort.py
+  commit: 4257f44b0ff1181dedaedee6a447e133219fcebf
+  sha256: 4bc023d77dcdaeaaf5b284a03eecf0f73765ff216efecadd1d5ed78382ac89a3
+  license: MIT
+complexity:
+  level: L2
+  cognitive: null           # wird von tools/compute_complexity.py gesetzt
+  loc: null
+spec: trailing_string       # Spezifikation steht als String am Dateiende
+tests:
+  origin: generated_from_json_testcases
+  timeout_s: 5
+defects:
+  # quixbugs_class: Klasse aus Tabelle 1 des QuixBugs-Papers; die Zuordnung zum Programm ist aus dem Diff zur korrigierten Version abgeleitet (das Paper nennt sie nicht).
+  - id: D1
+    kind: bug
+    lines: [7, 7]
+    accept_lines: [6, 7]
+    description: "Vergleich `x > pivot` verwirft Duplikate des Pivot-Elements"
+    fix_op: replace
+    fix: "    greater = quicksort([x for x in arr[1:] if x >= pivot])"
+    quixbugs_class: Incorrect comparison operator
