@@ -44,7 +44,7 @@ Vorbereitung: [GUIDE_INSTRUCTOR.md](GUIDE_INSTRUCTOR.md). Rollen (Vorschlag, im 
 |---|---|---|
 | Keine T4-GPU für Gruppe 4 | Ollama-Zelle meldet „Keine GPU gefunden“ | Setup erneut: „Gruppe 4 ohne GPU“ ankreuzen → kleines Modell über OpenRouter. Im Dashboard ggf. Vorab-Daten einblenden. |
 | Ollama-Download zu langsam | Zelle läuft > 5 min | Gruppe 4 arbeitet mit dem Fallback (siehe oben) weiter. |
-| Rate-Limit / Ausfall eines Anbieters | ⚠️-Meldungen, viele „unlesbar“-Zellen | Weiterlaufen lassen (Retries). Notfalls Probemodus (Mock) ankreuzen, damit die Gruppe die Oberfläche kennenlernt; Ergebnisse aus Vorab-Daten zeigen. |
+| Rate-Limit / Ausfall eines Anbieters | ⚠️-Meldungen, viele „unlesbar“-Zellen | Weiterlaufen lassen (Retries). Notfalls Probemodus (Mock) ankreuzen, damit die Gruppe die Oberfläche kennenlernt (Mock-Läufe landen in der Session `<session>-mock` und zählen nicht; Achtung: der Mock meldet die echte Defektzeile, also nicht vor Auftrag 2 nutzen). Ergebnisse aus Vorab-Daten zeigen. |
 | Scoreboard nicht erreichbar | Dashboard aktualisiert nicht | Läufe landen in `/content/scoreboard_backup.csv` der Gruppen. Später per Instructor-Notebook („Sicherung nachsenden“) einspielen. Bis dahin Notfall-Folie. |
 | WLAN-Probleme | Setup hängt beim Klonen | Hotspot; sonst Notfall-Folie mit Vorab-Daten und die Diskussion anhand der Thesen führen. |
 | Gruppe kommt nicht weiter | — | Nur Buttons und Formulare nötig; Student-Guide; Eva und Jessica gehen herum. |

@@ -118,6 +118,8 @@ def configure(group: str, api_key: str, *, use_fallback: bool = False, mock: boo
         make_client(model_key, api_key)
         make_client("reference", api_key)
     SESSION.group, SESSION.model_key, SESSION.api_key, SESSION.mock = group, model_key, api_key, mock
+    # Mock-Läufe in eine eigene Session, damit sie Leaderboard und Heatmaps nicht verfälschen.
+    SESSION.session_id = f"{DEFAULT_SESSION_ID}-mock" if mock else DEFAULT_SESSION_ID
     SESSION.scoreboard = SESSION.scoreboard or _scoreboard()
     return f"✅ Bereit – {group}, euer Judge: {MODELS[model_key]['label']}"
 

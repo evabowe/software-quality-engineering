@@ -172,3 +172,11 @@ def test_same_prompt_is_not_submitted_twice():
     records, message = ui.submit_challenge("  You are a careful reviewer.\n")
     assert records is None and "schon eingereicht" in message
     assert ui.SESSION.submissions_used == 1
+
+
+def test_mock_runs_go_to_separate_session():
+    # Probemodus darf weder Leaderboard noch Heatmaps der echten Session verfälschen.
+    ui.configure("Gruppe 2", api_key="", mock=True)
+    assert ui.SESSION.context().session_id == f"{ui.DEFAULT_SESSION_ID}-mock"
+    ui.configure("Gruppe 2", api_key="sk-test")
+    assert ui.SESSION.context().session_id == ui.DEFAULT_SESSION_ID
