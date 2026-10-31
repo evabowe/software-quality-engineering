@@ -11,8 +11,8 @@ source:
   license: MIT
 complexity:
   level: L4
-  cognitive: null           # wird von tools/compute_complexity.py gesetzt
-  loc: null
+  cognitive: 9
+  loc: 36
 spec: trailing_string       # Spezifikation steht als String am Dateiende
 tests:
   origin: generated_from_json_testcases

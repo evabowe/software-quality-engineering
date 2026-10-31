@@ -7,8 +7,8 @@ source:
   license: MIT
 complexity:
   level: null               # keine Stufe: Kontrolle für Data Contamination, nicht Teil von L1–L5
-  cognitive: null           # wird von tools/compute_complexity.py gesetzt
-  loc: null
+  cognitive: 9
+  loc: 82
 spec: docstring             # Regeln stehen im Modul-Docstring
 tests:
   origin: original
