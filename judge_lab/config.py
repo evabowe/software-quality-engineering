@@ -6,3 +6,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SNIPPETS_DIR = REPO_ROOT / "snippets"
 PROMPTS_DIR = REPO_ROOT / "prompts"
+
+# Haltungen aus dem Paper; Dateinamen in prompts/attitudes/
+ATTITUDES = ("strict", "objective", "lenient")
