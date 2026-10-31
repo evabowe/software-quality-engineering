@@ -1,3 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "judge-lab"
+version = "0.1.0"
+description = "Hands-on: LLM-as-a-Judge für Softwarequalität mit Ground Truth"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.40",
+    "pydantic>=2",
+    "pyyaml>=6",
+    "ipywidgets>=8",
+    "pandas>=2",
+    "requests>=2.31",
+    "complexipy>=3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+packages = ["judge_lab"]
+
 [tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["src"]
+# Die Tests der Snippets schlagen absichtlich fehl; sie laufen nur über
+# tests/test_ground_truth.py.
+testpaths = ["tests"]
