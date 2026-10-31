@@ -127,3 +127,22 @@ test("Zellwerte: Text mit = + - @ am Anfang wird nicht als Formel geschrieben", 
   assert.equal(cellValue(null), "");
   assert.equal(cellValue(undefined), "");
 });
+
+test("doppelt gesendete Läufe (gleiche run_id) zählen einmal", () => {
+  const rows = [
+    run({ run_id: "r1", model_key: "gemini", attitude: "strict", recall: 1 }),
+    run({ run_id: "r1", model_key: "gemini", attitude: "strict", recall: 1 }),
+    run({ run_id: "r2", model_key: "gemini", attitude: "strict", recall: 0 }),
+  ];
+  const data = aggregate(rows, DEFECTS, "live", false);
+  assert.equal(data.runs, 2);
+  assert.equal(data.recallHeatmap.gemini.strict, 0.5);
+});
+
+test("Einreichungen mit gleicher Nummer, aber verschiedener submission_id werden nicht addiert", () => {
+  const sub = (id, tp) => run({ run_id: id + tp, group: "Gruppe 1", model_key: "gemini", phase: "a2_submit",
+                                submission_no: 1, submission_id: id, tp, fp: 0, prompt_text: id });
+  const { gallery, leaderboard } = aggregate([sub("s1", 1), sub("s2", 3)], DEFECTS, "live", false);
+  assert.equal(gallery.length, 2);
+  assert.deepEqual(leaderboard.map((e) => e.points), [6]);
+});

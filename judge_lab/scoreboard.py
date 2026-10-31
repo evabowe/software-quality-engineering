@@ -18,6 +18,7 @@ from judge_lab.config import SCOREBOARD_RETRIES, SCOREBOARD_TIMEOUT
 # Eine Zeile pro LLM-Lauf (Konzept 8.8). Dieselbe Reihenfolge steht als FIELDS in scoreboard/Code.gs.
 RECORD_FIELDS = (
     "timestamp",
+    "run_id",  # eindeutig je Lauf; das Dashboard entfernt doppelt gesendete Läufe
     "session_id",
     "group",
     "phase",  # prognosis | a1 | a2_probe | a2_submit | reference
@@ -30,6 +31,7 @@ RECORD_FIELDS = (
     "prompt_hash",
     "prompt_text",  # nur bei a2_submit
     "submission_no",
+    "submission_id",  # eindeutig je Einreichung (Gruppe + Referenz); der Zähler allein ist es nicht
     "tp",
     "fp",
     "neutral",

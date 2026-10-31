@@ -13,6 +13,7 @@
 // Gleiche Reihenfolge wie RECORD_FIELDS in judge_lab/scoreboard.py (Test: tests/test_scoreboard_contract.py)
 const FIELDS = [
   "timestamp",
+  "run_id",
   "session_id",
   "group",
   "phase",
@@ -25,6 +26,7 @@ const FIELDS = [
   "prompt_hash",
   "prompt_text",
   "submission_no",
+  "submission_id",
   "tp",
   "fp",
   "neutral",
@@ -145,9 +147,15 @@ function submissionPoints(rows) {
 // --- Aggregation (reine Funktion, mit Node getestet) ----------------------------
 
 function aggregate(rows, defects, sessionId, includePrecomputed) {
-  const selected = rows.filter(
-    (r) => r.session_id === sessionId || (includePrecomputed && r.session_id === PRECOMPUTED)
-  );
+  // Ein Retry nach Timeout kann einen Lauf doppelt anhängen: gleiche run_id nur einmal zählen.
+  const seen = {};
+  const selected = rows.filter((r) => {
+    if (!(r.session_id === sessionId || (includePrecomputed && r.session_id === PRECOMPUTED))) return false;
+    if (!r.run_id) return true;
+    if (seen[r.run_id]) return false;
+    seen[r.run_id] = true;
+    return true;
+  });
   const a1 = selected.filter((r) => r.phase === "a1");
   const models = uniqueSorted(a1.map((r) => r.model_key));
 
@@ -216,7 +224,9 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
 
   // Prompt-Challenge
   const challenge = selected.filter((r) => r.phase === "a2_submit" || r.phase === "reference");
-  const gallery = Object.values(groupBy(challenge, (r) => r.group + "|" + r.submission_no)).map((runs) => {
+  const gallery = Object.values(
+    groupBy(challenge, (r) => r.submission_id || r.group + "|" + r.submission_no)
+  ).map((runs) => {
     const own = runs.filter((r) => r.phase === "a2_submit");
     const reference = runs.filter((r) => r.phase === "reference");
     const text = own.map((r) => r.prompt_text).find((t) => t) || "";

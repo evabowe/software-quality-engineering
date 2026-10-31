@@ -8,6 +8,7 @@ Fehler einzelner Läufe brechen nichts ab; sie werden im Datensatz markiert.
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -76,6 +77,7 @@ def _empty_record(ctx: RunContext, phase: str) -> dict:
     record = dict.fromkeys(RECORD_FIELDS, "")
     record.update(
         timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        run_id=uuid.uuid4().hex,
         session_id=ctx.session_id,
         group=ctx.group,
         phase=phase,
@@ -94,6 +96,7 @@ def run_one(
     attitude: str | None = None,
     custom_block: str | None = None,
     submission_no: int | None = None,
+    submission_id: str = "",
     model_key: str | None = None,
 ) -> dict:
     """Ein Judge-Lauf auf einem Snippet; gibt den (bereits gesendeten) Datensatz zurück."""
@@ -109,6 +112,7 @@ def run_one(
         prompt_hash=prompt_hash(block),
         prompt_text=custom_block if phase == "a2_submit" else "",
         submission_no=submission_no if submission_no is not None else "",
+        submission_id=submission_id,
     )
     verdict, error = None, ""
     try:
@@ -201,15 +205,17 @@ def run_challenge(
         return [record]
 
     reference_client = clients["reference"]
+    submission_id = uuid.uuid4().hex
     total = 2 * len(snippets)
     group_jobs = [
         (lambda s=s: run_one(ctx, group_client, s, phase="a2_submit", with_tests=False,
-                             custom_block=prompt_text, submission_no=submission_no))
+                             custom_block=prompt_text, submission_no=submission_no, submission_id=submission_id))
         for s in snippets
     ]
     reference_jobs = [
         (lambda s=s: run_one(ctx, reference_client, s, phase="reference", with_tests=False,
-                             custom_block=prompt_text, submission_no=submission_no, model_key="reference"))
+                             custom_block=prompt_text, submission_no=submission_no, submission_id=submission_id,
+                             model_key="reference"))
         for s in snippets
     ]
     records = _run_parallel(group_jobs, CONCURRENCY.get(group_client.provider, 1), on_progress, 0, total)

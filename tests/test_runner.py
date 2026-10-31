@@ -184,3 +184,20 @@ def test_end_to_end_csv(tmp_path):
     assert len(rows) == 36
     assert {r["session_id"] for r in rows} == {"ci"}
     assert {r["parse_ok"] for r in rows} == {"True", "False"}
+
+
+def test_records_have_unique_run_ids():
+    context, _ = ctx()
+    records = run_matrix(context, MockClient(SNIPPETS), SNIPPETS, ("strict",), (True, False))
+    ids = [r["run_id"] for r in records]
+    assert all(ids) and len(set(ids)) == len(ids)
+
+
+def test_each_submission_has_its_own_id():
+    context, _ = ctx(model_key="gemini")
+    clients = {"group": MockClient(SNIPPETS), "reference": MockClient(SNIPPETS)}
+    first = run_challenge(context, clients, "A", snippets=SNIPPETS, submit=True, submission_no=1)
+    # z. B. nach einem Neustart der Laufzeit beginnt der Zähler wieder bei 1
+    second = run_challenge(context, clients, "B", snippets=SNIPPETS, submit=True, submission_no=1)
+    assert len({r["submission_id"] for r in first}) == 1
+    assert first[0]["submission_id"] and first[0]["submission_id"] != second[0]["submission_id"]
