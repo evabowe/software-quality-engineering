@@ -7,6 +7,7 @@ Subprozessen und HTTP werden für die Tests als Parameter übergeben.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -20,6 +21,9 @@ from judge_lab.llm import ChatClient, LLMResult
 
 INSTALL_COMMAND = "curl -fsSL https://ollama.com/install.sh | sh"
 VERSION_URL = OLLAMA_BASE_URL.replace("/v1", "/api/version")
+# Prompt (bis ~3k Tokens bei bank_account mit Tests) + bis zu 2000 Ausgabe-Tokens. Mit dem
+# Standardwert schneidet Ollama still den Anfang ab – also den System-Prompt mit der Haltung.
+CONTEXT_LENGTH = 8192
 
 
 def _default_log_path() -> Path:
@@ -56,7 +60,8 @@ def serve(popen=subprocess.Popen, is_up=is_up, log_path: Path | None = None, wai
     if is_up():
         return False
     log = open(log_path or _default_log_path(), "a", encoding="utf-8")  # bleibt für den Server offen
-    popen(["ollama", "serve"], stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    env = {**os.environ, "OLLAMA_CONTEXT_LENGTH": str(CONTEXT_LENGTH)}
+    popen(["ollama", "serve"], stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env=env)
     for _ in range(wait_s):
         if is_up():
             return True

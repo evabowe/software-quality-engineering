@@ -70,3 +70,13 @@ def test_no_gpu_message_skips_install():
     message = ollama_colab.start_local_model("qwen2.5-coder:3b", run=run)
     assert "GPU" in message and "Fallback" in message
     assert len(run.calls) == 1  # nur nvidia-smi, keine Installation
+
+
+def test_serve_sets_context_length(tmp_path):
+    # Mit dem Standard-Kontext (2–4k Tokens) würde Ollama den System-Prompt mit der Haltung abschneiden.
+    states = iter([False, True])
+    popen = Recorder()
+    ollama_colab.serve(popen=popen, is_up=lambda: next(states), log_path=tmp_path / "log", sleep=lambda s: None)
+    _, kwargs = popen.calls[0]
+    assert int(kwargs["env"]["OLLAMA_CONTEXT_LENGTH"]) >= 8192
+    assert "PATH" in kwargs["env"]
