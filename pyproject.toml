@@ -29,3 +29,5 @@ packages = ["judge_lab"]
 # Die Tests der Snippets schlagen absichtlich fehl; sie laufen nur über
 # tests/test_ground_truth.py.
 testpaths = ["tests"]
+# Erlaubt `import tools.…` in den Tests.
+pythonpath = ["."]
