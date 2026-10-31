@@ -116,3 +116,30 @@ def test_snippet_view_has_no_ground_truth():
 def test_friendly_error(exc, expected):
     message = ui.friendly_error(exc)
     assert expected in message and "Traceback" not in message
+
+
+class FailingClient:
+    provider = "mock"
+    model_id = "failing"
+
+    def complete(self, messages):
+        from judge_lab.llm import LLMResult
+
+        return LLMResult("", 0.1, None, None, error="LLM-Aufruf fehlgeschlagen: Error code: 401 - User not found")
+
+
+def test_infrastructure_error_shown_as_error(monkeypatch):
+    monkeypatch.setattr(ui.Session, "client", lambda self: FailingClient())
+    records = ui.run_assignment1()
+    table = ui.assignment1_table(records)
+    assert table.iloc[0, 0] == "Fehler"
+    assert any("401" in line for line in ui.error_summary(records))
+    summary_records, _ = ui.submit_challenge("Be careful.")
+    assert ui.challenge_summary(summary_records).iloc[0]["Treffer"] == "Fehler"
+
+
+def test_ollama_not_running_gives_german_message(monkeypatch):
+    ui.configure("Gruppe 4", api_key="sk-test")
+    monkeypatch.setattr(ui.ollama_colab, "is_up", lambda: False)
+    with pytest.raises(ConfigError, match="Gruppe 4"):
+        ui.SESSION.client()

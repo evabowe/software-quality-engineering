@@ -107,11 +107,14 @@ def test_repair_fails_gives_parse_ok_false():
     assert record["parse_ok"] is False and len(client.calls) == 2
 
 
-def test_llm_error_is_recorded_without_repair():
+def test_llm_error_is_not_counted_as_judge_result():
+    # Ein Transportfehler (Key, Limit, Ausfall) sagt nichts über den Judge: keine Treffer-/Recall-Werte.
     client = ScriptedClient(LLMResult("", 1.0, None, None, error="LLM-Aufruf fehlgeschlagen: 429"))
     context, _ = ctx()
     record = run_one(context, client, get_snippet("bank_account"), phase="a1", with_tests=False, attitude="strict")
-    assert record["parse_ok"] is False and "429" in record["error"]
+    assert record["parse_ok"] is None and "429" in record["error"]
+    assert (record["tp"], record["fp"], record["recall"], record["precision"]) == (None, None, None, None)
+    assert record["n_defects"] == 6
     assert len(client.calls) == 1
 
 
@@ -121,7 +124,8 @@ def test_client_exception_does_not_abort_matrix():
     snippets = [get_snippet("bank_account")]
     records = run_matrix(context, client, snippets, ("strict", "objective", "lenient"), (False,))
     assert len(records) == 3
-    assert sum(1 for r in records if "kaputt" in r["error"]) == 1
+    failed = [r for r in records if "kaputt" in r["error"]]
+    assert len(failed) == 1 and failed[0]["parse_ok"] is None and failed[0]["tp"] is None
     assert sum(1 for r in records if r["parse_ok"]) == 2
 
 

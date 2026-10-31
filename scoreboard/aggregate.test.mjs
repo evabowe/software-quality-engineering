@@ -146,3 +146,15 @@ test("Einreichungen mit gleicher Nummer, aber verschiedener submission_id werden
   assert.equal(gallery.length, 2);
   assert.deepEqual(leaderboard.map((e) => e.points), [6]);
 });
+
+test("Läufe mit Infrastrukturfehler (parse_ok leer) zählen nicht in die Wertung", () => {
+  const rows = [
+    run({ model_key: "kimi", attitude: "strict", recall: 1, parse_ok: true }),
+    run({ model_key: "kimi", attitude: "strict", recall: "", tp: "", parse_ok: "", error: "401" }),
+    run({ model_key: "kimi", attitude: "strict", recall: 0, parse_ok: false, error: "kein JSON" }),
+  ];
+  const data = aggregate(rows, DEFECTS, "live", false);
+  assert.equal(data.recallHeatmap.kimi.strict, 0.5);
+  assert.deepEqual(data.parseFailures.kimi, { failed: 1, total: 2 });
+  assert.equal(data.infraErrors.kimi, 1);
+});

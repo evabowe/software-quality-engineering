@@ -75,7 +75,7 @@
     <p class="hint">QuixBugs ist seit 2017 öffentlich (vermutlich in den Trainingsdaten), bank_account nicht</p>
     <div id="publicVsPrivate"></div>
     <h2>Formattreue</h2>
-    <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren</p>
+    <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren; Läufe mit Infrastrukturfehlern zählen nirgends in die Wertung</p>
     <div id="parseFailures"></div>
   </section>
 
@@ -181,9 +181,13 @@
       document.getElementById("publicVsPrivate").innerHTML = table(["Modell", "Recall QuixBugs", "Recall bank_account"],
         models.map((m) => "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(d.publicVsPrivate[m].quixbugs) +
           "</td><td>" + fmt(d.publicVsPrivate[m].bank_account) + "</td></tr>"));
-      document.getElementById("parseFailures").innerHTML = table(["Modell", "unlesbar", "Läufe"],
-        Object.keys(d.parseFailures).sort().map((m) => "<tr><th class='left'>" + esc(m) + "</th><td>" +
-          d.parseFailures[m].failed + "</td><td>" + d.parseFailures[m].total + "</td></tr>"));
+      const failureModels = Array.from(new Set(Object.keys(d.parseFailures).concat(Object.keys(d.infraErrors)))).sort();
+      document.getElementById("parseFailures").innerHTML = table(["Modell", "unlesbar", "gewertete Läufe", "Fehler (Key, Limit, Netz)"],
+        failureModels.map((m) => {
+          const p = d.parseFailures[m] || { failed: 0, total: 0 };
+          return "<tr><th class='left'>" + esc(m) + "</th><td>" + p.failed + "</td><td>" + p.total +
+            "</td><td>" + (d.infraErrors[m] || 0) + "</td></tr>";
+        }));
 
       document.getElementById("predictions").innerHTML = table(["Gruppe", "Bester Judge (Prognose)", "strict vs. lenient"],
         d.predictions.map((p) => "<tr><td class='left'>" + esc(p.group) + "</td><td>" + esc(p.best_model) +

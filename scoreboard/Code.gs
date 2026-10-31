@@ -156,7 +156,13 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
     seen[r.run_id] = true;
     return true;
   });
-  const a1 = selected.filter((r) => r.phase === "a1");
+  // Läufe ohne Urteil wegen Infrastruktur (Key, Limit, Netz): parse_ok leer. Sie sagen nichts über den Judge.
+  const failed = (r) => r.parse_ok === "" || r.parse_ok === null || r.parse_ok === undefined;
+  const infraErrors = {};
+  selected.filter((r) => r.phase !== "prognosis" && failed(r)).forEach((r) => {
+    infraErrors[r.model_key] = (infraErrors[r.model_key] || 0) + 1;
+  });
+  const a1 = selected.filter((r) => r.phase === "a1" && !failed(r));
   const models = uniqueSorted(a1.map((r) => r.model_key));
 
   // RQ1: welcher Defekt wurde von welchem Modell wie oft gefunden?
@@ -211,7 +217,7 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
     };
   });
   // Formattreue über alle Phasen mit LLM-Lauf
-  const llmRuns = selected.filter((r) => r.phase !== "prognosis");
+  const llmRuns = selected.filter((r) => r.phase !== "prognosis" && !failed(r));
   Object.entries(groupBy(llmRuns, (r) => r.model_key)).forEach(([model, runs]) => {
     parseFailures[model] = { failed: runs.filter((r) => !bool(r.parse_ok)).length, total: runs.length };
   });
@@ -258,6 +264,7 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
     testsDelta: testsDelta,
     publicVsPrivate: publicVsPrivate,
     parseFailures: parseFailures,
+    infraErrors: infraErrors,
     predictions: predictions,
     leaderboard: leaderboard,
     gallery: gallery.sort((x, y) => x.group.localeCompare(y.group) || x.submission_no - y.submission_no),

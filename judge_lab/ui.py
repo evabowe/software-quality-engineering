@@ -21,6 +21,7 @@ import pandas as pd
 import requests
 from IPython.display import HTML, display
 
+from judge_lab import ollama_colab
 from judge_lab.config import (
     CHALLENGE_MAX_SUBMISSIONS,
     DEFAULT_SESSION_ID,
@@ -66,7 +67,14 @@ class Session:
                           sink=self.scoreboard.submit)
 
     def client(self):
-        return MockClient() if self.mock else make_client(self.model_key, self.api_key)
+        if self.mock:
+            return MockClient()
+        if MODELS[self.model_key]["provider"] == "ollama" and not ollama_colab.is_up():
+            raise ConfigError(
+                "Das lokale Modell läuft noch nicht. Gruppe 4: bitte zuerst die Zelle „🖥️ Nur Gruppe 4“ "
+                "ausführen – oder im Setup „ohne GPU“ ankreuzen."
+            )
+        return make_client(self.model_key, self.api_key)
 
     def reference_client(self):
         return MockClient() if self.mock else make_client("reference", self.api_key)
@@ -137,7 +145,23 @@ def _titles() -> dict[str, str]:
     return {s.id: s.title for s in load_snippets()}
 
 
+def _failed(record: dict) -> bool:
+    """Lauf ohne Urteil wegen Infrastruktur (Key, Limit, Netz) – nicht wegen des Judges."""
+    return record["parse_ok"] is None
+
+
+def error_summary(records: list[dict]) -> list[str]:
+    """Verschiedene Fehlermeldungen der fehlgeschlagenen Läufe mit Anzahl."""
+    counts: dict[str, int] = {}
+    for r in records:
+        if _failed(r):
+            counts[r["error"]] = counts.get(r["error"], 0) + 1
+    return [f"{n}× {message}" for message, n in counts.items()]
+
+
 def _cell(record: dict) -> str:
+    if _failed(record):
+        return "Fehler"
     found = f"{record['tp']}/{record['n_defects']}"
     if not record["parse_ok"]:
         return f"unlesbar · {found}"
@@ -179,8 +203,9 @@ def findings_table(records: list[dict]) -> pd.DataFrame:
 
 
 def _result(record: dict) -> MatchResult:
-    return MatchResult(tp=record["tp"], fp=record["fp"], neutral=record["neutral"], n_defects=record["n_defects"],
-                       found_defect_ids=(), assignments={}, recall=None, precision=None)
+    # Fehlgeschlagene Läufe (tp/fp leer) zählen 0 Punkte.
+    return MatchResult(tp=record["tp"] or 0, fp=record["fp"] or 0, neutral=record["neutral"] or 0,
+                       n_defects=record["n_defects"], found_defect_ids=(), assignments={}, recall=None, precision=None)
 
 
 def challenge_summary(records: list[dict]) -> pd.DataFrame:
@@ -193,7 +218,7 @@ def challenge_summary(records: list[dict]) -> pd.DataFrame:
         mark = "✔" if r["tp"] else "✘"
         ref = reference.get(r["snippet_id"])
         rows[titles[r["snippet_id"]]] = {
-            "Treffer": f"{mark} {r['tp']}/{r['n_defects']}",
+            "Treffer": "Fehler" if _failed(r) else f"{mark} {r['tp']}/{r['n_defects']}",
             "Fehlalarme": r["fp"],
             "Punkte": challenge_points([_result(r)]),
             "Punkte Referenz": challenge_points([_result(ref)]) if ref else None,
@@ -201,7 +226,7 @@ def challenge_summary(records: list[dict]) -> pd.DataFrame:
     table = pd.DataFrame.from_dict(rows, orient="index", columns=["Treffer", "Fehlalarme", "Punkte", "Punkte Referenz"])
     table.loc["Summe"] = [
         "",
-        sum(r["fp"] for r in own),
+        sum(r["fp"] or 0 for r in own),
         challenge_points(_result(r) for r in own),
         challenge_points(_result(r) for r in reference.values()) if reference else None,
     ]
@@ -239,6 +264,14 @@ def _show_error(out: widgets.Output, exc: BaseException) -> None:
     debug.selected_index = None
     with out:
         display(HTML(f"<b>{html.escape(friendly_error(exc))}</b>"), debug)
+
+
+def _show_failures(records: list[dict]) -> None:
+    lines = error_summary(records)
+    if lines:
+        items = "".join(f"<li>{html.escape(line)}</li>" for line in lines)
+        display(HTML(f"<div style='color:#b45309'><b>⚠️ Einige Läufe sind fehlgeschlagen "
+                     f"(zählen nicht als Ergebnis des Judges):</b><ul>{items}</ul></div>"))
 
 
 def _guarded(out: widgets.Output, action):
@@ -337,6 +370,7 @@ def assignment1_panel() -> widgets.Widget:
         finally:
             button.disabled = False
         with out:
+            _show_failures(records)
             display(HTML("<b>Score · gefundene Defekte</b> (je Snippet und Bedingung)"),
                     assignment1_table(records))
             findings = widgets.Output()
@@ -395,6 +429,7 @@ def assignment2_panel() -> widgets.Widget:
         with out:
             print(message)
             if records:
+                _show_failures(records)
                 display(challenge_summary(records))
 
     text.observe(check, names="value")

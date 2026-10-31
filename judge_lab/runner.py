@@ -114,14 +114,23 @@ def run_one(
         submission_no=submission_no if submission_no is not None else "",
         submission_id=submission_id,
     )
-    verdict, error = None, ""
+    verdict, error, infrastructure_failed = None, "", False
     try:
         messages = build_prompt(snippet, attitude=attitude, custom_block=custom_block, with_tests=with_tests)
         verdict, result, _ = judge(client, messages, snippet.line_count)
+        infrastructure_failed = bool(result.error)
         error = result.error or ("" if verdict else "Antwort war kein lesbares JSON (auch nach Reparatur-Versuch).")
         record.update(latency_s=round(result.latency_s, 2), tokens_in=result.tokens_in, tokens_out=result.tokens_out)
     except Exception as exc:  # noqa: BLE001 – ein kaputter Lauf darf die Matrix nicht abbrechen
-        error = f"{type(exc).__name__}: {exc}"
+        infrastructure_failed, error = True, f"{type(exc).__name__}: {exc}"
+
+    if infrastructure_failed:
+        # Key, Limit, Netz oder Server: Das sagt nichts über den Judge. Metriken bleiben leer
+        # (parse_ok=None), damit Dashboard und Tabelle den Lauf nicht als „0 gefunden“ werten.
+        record.update(n_defects=len(snippet.defects), parse_ok=None, error=error,
+                      tp=None, fp=None, neutral=None, recall=None, precision=None)
+        ctx.sink(record)
+        return record
 
     findings = verdict.findings if verdict else []
     match = match_findings(findings, snippet.defects)
