@@ -1,0 +1,186 @@
+"""Tests für Matrix- und Challenge-Läufe (mit Mock- und Fake-Clients)."""
+
+import csv
+import json
+
+from judge_lab import NOTEBOOK_VERSION
+from judge_lab.llm import LLMResult, MockClient
+from judge_lab.parsing import REPAIR_MESSAGE
+from judge_lab.runner import (
+    RunContext,
+    assignment1_variants,
+    prognosis_record,
+    run_challenge,
+    run_matrix,
+    run_one,
+)
+from judge_lab.scoreboard import RECORD_FIELDS, Scoreboard
+from judge_lab.snippets import get_snippet, load_snippets
+
+SNIPPETS = load_snippets()
+VALID = json.dumps({"findings": [{"line_start": 26, "category": "bug"}],
+                    "scores": {"functional_correctness": 4, "reliability": 5, "maintainability": 6, "readability": 7}})
+
+
+class ScriptedClient:
+    """Liefert nacheinander die vorgegebenen Antworten; merkt sich alle Aufrufe."""
+
+    provider = "mock"
+    model_id = "scripted"
+
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.calls = []
+
+    def complete(self, messages):
+        self.calls.append(messages)
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer if isinstance(answer, LLMResult) else LLMResult(answer, 0.5, 100, 20)
+
+
+def ctx(sink=None, model_key="mock"):
+    collected = []
+    return RunContext(group="Gruppe 1", model_key=model_key, session_id="test",
+                      sink=sink or collected.append), collected
+
+
+def test_matrix_36_records():
+    context, sent = ctx()
+    progress = []
+    attitudes, variants = assignment1_variants("gemini")
+    records = run_matrix(context, MockClient(SNIPPETS), SNIPPETS, attitudes, variants,
+                         on_progress=lambda done, total: progress.append((done, total)))
+    assert len(records) == 36 and len(sent) == 36
+    assert progress[-1] == (36, 36)
+    assert all(tuple(r) == RECORD_FIELDS for r in records)
+    first = records[0]
+    assert (first["phase"], first["session_id"], first["group"], first["notebook_version"]) == (
+        "a1", "test", "Gruppe 1", NOTEBOOK_VERSION)
+    assert first["snippet_id"] == SNIPPETS[0].id and first["attitude"] == "strict" and first["with_tests"] is True
+
+
+def test_local_matrix_reduced():
+    attitudes, variants = assignment1_variants("local")
+    assert (attitudes, variants) == (("strict", "lenient"), (False,))
+    context, _ = ctx()
+    assert len(run_matrix(context, MockClient(SNIPPETS), SNIPPETS, attitudes, variants)) == 12
+
+
+def test_record_metrics_from_mock():
+    context, _ = ctx()
+    record = run_one(context, MockClient(SNIPPETS), get_snippet("bank_account"),
+                     phase="a1", with_tests=False, attitude="strict")
+    assert (record["tp"], record["fp"], record["neutral"], record["n_defects"]) == (1, 1, 1, 6)
+    assert record["found_defect_ids"] == "B1"
+    assert record["weighted_score"] == 3.0
+    assert record["parse_ok"] is True and record["error"] == ""
+    assert record["complexity_level"] == ""
+    assert record["prompt_text"] == ""
+
+
+def test_broken_json_marked_not_dropped():
+    context, sent = ctx()
+    record = run_one(context, MockClient(SNIPPETS), get_snippet("qb_levenshtein"),
+                     phase="a1", with_tests=False, attitude="objective")
+    assert record["parse_ok"] is False and record["tp"] == 0
+    assert record["error"]
+    assert sent == [record]
+
+
+def test_repair_retry_used_once():
+    client = ScriptedClient("Sorry, here it is: {broken", VALID)
+    context, _ = ctx()
+    record = run_one(context, client, get_snippet("bank_account"), phase="a1", with_tests=False, attitude="strict")
+    assert record["parse_ok"] is True and record["tp"] == 1
+    assert len(client.calls) == 2
+    assert client.calls[1][-1] == {"role": "user", "content": REPAIR_MESSAGE}
+    assert client.calls[1][-2]["role"] == "assistant"
+    assert (record["latency_s"], record["tokens_in"], record["tokens_out"]) == (1.0, 200, 40)
+
+
+def test_repair_fails_gives_parse_ok_false():
+    client = ScriptedClient("nope", "still nope")
+    context, _ = ctx()
+    record = run_one(context, client, get_snippet("bank_account"), phase="a1", with_tests=False, attitude="strict")
+    assert record["parse_ok"] is False and len(client.calls) == 2
+
+
+def test_llm_error_is_recorded_without_repair():
+    client = ScriptedClient(LLMResult("", 1.0, None, None, error="LLM-Aufruf fehlgeschlagen: 429"))
+    context, _ = ctx()
+    record = run_one(context, client, get_snippet("bank_account"), phase="a1", with_tests=False, attitude="strict")
+    assert record["parse_ok"] is False and "429" in record["error"]
+    assert len(client.calls) == 1
+
+
+def test_client_exception_does_not_abort_matrix():
+    client = ScriptedClient(RuntimeError("kaputt"), VALID, VALID)
+    context, _ = ctx()
+    snippets = [get_snippet("bank_account")]
+    records = run_matrix(context, client, snippets, ("strict", "objective", "lenient"), (False,))
+    assert len(records) == 3
+    assert sum(1 for r in records if "kaputt" in r["error"]) == 1
+    assert sum(1 for r in records if r["parse_ok"]) == 2
+
+
+def test_challenge_submit_runs_group_and_reference():
+    context, sent = ctx(model_key="gemini")
+    clients = {"group": MockClient(SNIPPETS), "reference": MockClient(SNIPPETS)}
+    records = run_challenge(context, clients, "You are a careful reviewer.", snippets=SNIPPETS,
+                            submit=True, submission_no=2)
+    assert len(records) == 12 and len(sent) == 12
+    submitted = [r for r in records if r["phase"] == "a2_submit"]
+    reference = [r for r in records if r["phase"] == "reference"]
+    assert len(submitted) == len(reference) == 6
+    assert all(r["model_key"] == "gemini" and r["prompt_text"] == "You are a careful reviewer." for r in submitted)
+    assert all(r["model_key"] == "reference" and r["prompt_text"] == "" for r in reference)
+    assert {r["prompt_hash"] for r in records} == {submitted[0]["prompt_hash"]}
+    assert all(r["submission_no"] == 2 and r["with_tests"] is False and r["attitude"] == "custom" for r in records)
+
+
+def test_challenge_probe_single_snippet():
+    context, _ = ctx()
+    clients = {"group": MockClient(SNIPPETS), "reference": MockClient(SNIPPETS)}
+    records = run_challenge(context, clients, "Be thorough.", snippets=SNIPPETS, submit=False,
+                            probe_snippet_id="qb_quicksort")
+    assert [(r["phase"], r["snippet_id"]) for r in records] == [("a2_probe", "qb_quicksort")]
+    assert records[0]["prompt_text"] == ""
+
+
+def test_records_have_no_ground_truth_text():
+    context, _ = ctx()
+    records = run_matrix(context, MockClient(SNIPPETS), SNIPPETS, ("strict",), (True,))
+    text = json.dumps(records)
+    for snippet in SNIPPETS:
+        for defect in snippet.defects:
+            assert defect.description not in text
+
+
+def test_findings_json_is_truncated(monkeypatch):
+    many = json.dumps({"findings": [{"line_start": 1, "category": "style", "description": "x" * 500}] * 30})
+    context, _ = ctx()
+    record = run_one(context, ScriptedClient(many), get_snippet("bank_account"),
+                     phase="a1", with_tests=False, attitude="strict")
+    assert len(record["findings_json"]) == 5000
+
+
+def test_prognosis_record():
+    context, _ = ctx()
+    record = prognosis_record(context, best_model="kimi", strict_vs_lenient="strict findet mehr")
+    assert tuple(record) == RECORD_FIELDS
+    assert record["phase"] == "prognosis"
+    assert record["prediction_best_model"] == "kimi"
+
+
+def test_end_to_end_csv(tmp_path):
+    backup = tmp_path / "backup.csv"
+    board = Scoreboard("", "", backup)
+    context = RunContext(group="Gruppe 2", model_key="mock", session_id="ci", sink=board.submit)
+    run_matrix(context, MockClient(SNIPPETS), SNIPPETS, ("strict", "objective", "lenient"), (True, False))
+    with backup.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 36
+    assert {r["session_id"] for r in rows} == {"ci"}
+    assert {r["parse_ok"] for r in rows} == {"True", "False"}
