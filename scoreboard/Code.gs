@@ -62,6 +62,16 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Wert für appendRow. Text, der mit = + - @ beginnt (z. B. ein Prompt mit Markdown-Aufzählung),
+ * würde Sheets sonst als Formel auswerten; das vorangestellte ' speichert ihn als Text.
+ */
+function cellValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" && /^[=+\-@]/.test(value)) return "'" + value;
+  return value;
+}
+
 function bool(value) {
   return value === true || String(value).toLowerCase() === "true";
 }
@@ -290,13 +300,13 @@ function doPost(e) {
       const target = sheet_("defects");
       target.clearContents();
       target.appendRow(DEFECT_FIELDS);
-      body.defects.forEach((d) => target.appendRow(DEFECT_FIELDS.map((f) => (d[f] === undefined ? "" : d[f]))));
+      body.defects.forEach((d) => target.appendRow(DEFECT_FIELDS.map((f) => cellValue(d[f]))));
       return json_({ status: "ok", defects: body.defects.length });
     }
     const runs = sheet_("runs");
     if (runs.getLastRow() === 0) runs.appendRow(FIELDS);
     const record = body.record || {};
-    runs.appendRow(FIELDS.map((f) => (record[f] === undefined || record[f] === null ? "" : record[f])));
+    runs.appendRow(FIELDS.map((f) => cellValue(record[f])));
     return json_({ status: "ok" });
   } finally {
     lock.releaseLock();
@@ -323,4 +333,4 @@ function doGet(e) {
 }
 
 // Für die Tests mit Node; in Apps Script ist `module` nicht definiert.
-if (typeof module !== "undefined") module.exports = { aggregate, FIELDS, POINTS };
+if (typeof module !== "undefined") module.exports = { aggregate, cellValue, FIELDS, POINTS };

@@ -114,3 +114,16 @@ test("Prognosen: je Gruppe die letzte", () => {
   const { predictions } = aggregate(rows, DEFECTS, "live", false);
   assert.deepEqual(predictions.map((p) => p.best_model), ["gemini"]);
 });
+
+test("Zellwerte: Text mit = + - @ am Anfang wird nicht als Formel geschrieben", () => {
+  const { cellValue } = require("./Code.gs");
+  assert.equal(cellValue("- Check every loop"), "'- Check every loop");
+  assert.equal(cellValue("=IMPORTXML(\"x\")"), "'=IMPORTXML(\"x\")");
+  assert.equal(cellValue("+1"), "'+1");
+  assert.equal(cellValue("@me"), "'@me");
+  assert.equal(cellValue("You are careful"), "You are careful");
+  assert.equal(cellValue(-0.5), -0.5);
+  assert.equal(cellValue(true), true);
+  assert.equal(cellValue(null), "");
+  assert.equal(cellValue(undefined), "");
+});
