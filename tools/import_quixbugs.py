@@ -27,14 +27,22 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 QUIXBUGS_URL = "https://github.com/jkoppel/QuixBugs"
 MAX_CASES = 6
 
+# Testfälle, die QuixBugs in python_testcases/ selbst überspringt
+# („Takes too long to pass!“); sie laufen auch mit der korrekten Version zu lange.
+SKIPPED_CASES = {
+    "levenshtein": [["amanaplanacanalpanama", "docnoteidissentafastneverpreventsafatnessidietoncod"]],
+}
+
 
 def render_tests(name: str, cases: list) -> str:
     """Erzeugt tests.py aus JSON-Testfällen der Form ``[argumente, erwartet]``."""
+    skipped = SKIPPED_CASES.get(name, [])
+    cases = [case for case in cases if case[0] not in skipped]
     parts = [
         f'"""Tests für {name}.',
         "",
         "Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs",
-        f"json_testcases/{name}.json (die ersten {MAX_CASES} Testfälle).",
+        f"json_testcases/{name}.json (die ersten {MAX_CASES} Testfälle, die QuixBugs nicht überspringt).",
         '"""',
         "",
         f"from {name} import {name}",

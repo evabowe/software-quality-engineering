@@ -73,3 +73,12 @@ def test_import_keeps_existing_defects(tmp_path):
     text = meta_path.read_text()
     assert "# manuell gepflegt" in text
     assert yaml.safe_load(text)["source"]["commit"] == "new"
+
+
+def test_render_tests_skips_cases_quixbugs_skips():
+    # QuixBugs überspringt diesen Fall selbst, weil die naive Rekursion zu lange läuft.
+    slow = ["amanaplanacanalpanama", "docnoteidissentafastneverpreventsafatnessidietoncod"]
+    cases = [[["a", "b"], 1], [slow, 42]] + [[["x" * n, ""], n] for n in range(1, 6)]
+    text = render_tests("levenshtein", cases)
+    assert "amanaplanacanalpanama" not in text
+    assert text.count("def test_case_") == 6
