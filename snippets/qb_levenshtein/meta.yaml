@@ -1,0 +1,29 @@
+# Ground Truth für ein QuixBugs-Programm. Wird nie an ein LLM gesendet.
+id: qb_levenshtein
+title: Levenshtein Distance
+code_file: levenshtein.py
+source:
+  name: QuixBugs
+  url: https://github.com/jkoppel/QuixBugs
+  file: python_programs/levenshtein.py
+  commit: 4257f44b0ff1181dedaedee6a447e133219fcebf
+  sha256: 55f92da7c06a1eb1e398b557d18dee92d550a0ccfc72e65007729a83eda36266
+  license: MIT
+complexity:
+  level: L3
+  cognitive: null           # wird von tools/compute_complexity.py gesetzt
+  loc: null
+spec: trailing_string       # Spezifikation steht als String am Dateiende
+tests:
+  origin: generated_from_json_testcases
+  timeout_s: 5
+defects:
+  # quixbugs_class: Klasse aus Tabelle 1 des QuixBugs-Papers; die Zuordnung zum Programm ist aus dem Diff zur korrigierten Version abgeleitet (das Paper nennt sie nicht).
+  - id: D1
+    kind: bug
+    lines: [6, 6]
+    accept_lines: [5, 6]
+    description: "Bei gleichem ersten Zeichen wird fälschlich 1 addiert; korrekt ist die Distanz der Reste ohne Aufschlag"
+    fix_op: replace
+    fix: "        return levenshtein(source[1:], target[1:])"
+    quixbugs_class: Missing/added +1
