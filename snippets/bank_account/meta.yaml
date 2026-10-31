@@ -1,0 +1,52 @@
+# Ground Truth für das eigene Lehrbeispiel. Wird nie an ein LLM gesendet.
+id: bank_account
+title: Bankkonto
+code_file: bank_account.py
+source:
+  name: eigenes Lehrbeispiel
+  license: MIT
+complexity:
+  level: null               # keine Stufe: Kontrolle für Data Contamination, nicht Teil von L1–L5
+  cognitive: null           # wird von tools/compute_complexity.py gesetzt
+  loc: null
+spec: docstring             # Regeln stehen im Modul-Docstring
+tests:
+  origin: original
+  timeout_s: 5
+defects:
+  - id: B1
+    kind: bug
+    lines: [26, 26]
+    accept_lines: [25, 26]
+    description: "deposit verringert den Kontostand (`-=` statt `+=`)"
+    fix: "        self.balance += amount"
+  - id: B2
+    kind: bug
+    lines: [31, 31]
+    accept_lines: [31, 32]
+    description: "Abheben genau bis zum Dispo-Limit wird abgelehnt (`<=` statt `<`)"
+    fix: "        if self.balance - amount < -self.overdraft_limit:"
+  - id: B3
+    kind: bug
+    lines: [39, 40]
+    accept_lines: [38, 40]
+    description: "transfer schreibt zuerst gut und bucht dann ab; scheitert die Abbuchung, hat der Empfänger das Geld trotzdem"
+    fix: "        self.withdraw(amount)\n        target.deposit(amount)"
+  - id: Q1
+    kind: quality
+    lines: [24, 25]
+    accept_lines: [22, 25]
+    description: "toter Zweig `elif amount < 0`: negative Beträge lösen schon vorher den Fehler aus"
+    fix: ""
+  - id: Q2
+    kind: quality
+    lines: [33, 33]
+    accept_lines: [32, 33]
+    description: "unerreichbarer und wirkungsloser Code nach `raise`"
+    fix: ""
+  - id: Q3
+    kind: quality
+    lines: [42, 42]
+    accept_lines: [42, 42]
+    description: "ungenutzter Parameter `days` täuscht eine Abhängigkeit von der Anzahl der Tage vor"
+    fix: "    def apply_interest(self, savings_rate, overdraft_rate):"
