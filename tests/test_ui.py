@@ -143,3 +143,13 @@ def test_ollama_not_running_gives_german_message(monkeypatch):
     monkeypatch.setattr(ui.ollama_colab, "is_up", lambda: False)
     with pytest.raises(ConfigError, match="Gruppe 4"):
         ui.SESSION.client()
+
+
+def test_warns_when_runs_are_only_saved_locally():
+    # Das Fixture-Scoreboard hat keine URL: jeder Lauf landet nur in der CSV.
+    assert ui.local_only_warning(0) is None
+    before = ui.SESSION.local_only
+    ui.run_assignment1()
+    warning = ui.local_only_warning(before)
+    assert "36 Läufe" in warning and "lokal" in warning
+    assert ui.SESSION.local_only == before + 36

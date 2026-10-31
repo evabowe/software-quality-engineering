@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import json
+import threading
 import traceback
 from dataclasses import dataclass, field
 
@@ -55,7 +56,9 @@ class Session:
     session_id: str = DEFAULT_SESSION_ID
     scoreboard: Scoreboard | None = None
     submissions_used: int = 0
+    local_only: int = 0  # Läufe, die das Scoreboard nicht erreicht haben (nur in der CSV)
     a1_records: list = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def require_setup(self) -> None:
         if not self.group:
@@ -64,7 +67,14 @@ class Session:
     def context(self) -> RunContext:
         self.require_setup()
         return RunContext(group=self.group, model_key=self.model_key, session_id=self.session_id,
-                          sink=self.scoreboard.submit)
+                          sink=self._submit)
+
+    def _submit(self, record: dict) -> bool:
+        sent = self.scoreboard.submit(record)
+        if not sent:
+            with self._lock:
+                self.local_only += 1
+        return sent
 
     def client(self):
         if self.mock:
@@ -244,6 +254,21 @@ def snippet_html(snippet_id: str) -> str:
     )
 
 
+def local_only_warning(before: int) -> str | None:
+    """Hinweis, wenn seit ``before`` Läufe nur lokal gesichert wurden."""
+    missing = SESSION.local_only - before
+    if missing <= 0:
+        return None
+    return (f"⚠️ {missing} Läufe haben das Scoreboard nicht erreicht und sind nur lokal gesichert "
+            f"({SESSION.scoreboard.backup_path.name}). Bitte Bescheid geben – sie werden später nachgesendet.")
+
+
+def _show_local_only(before: int) -> None:
+    warning = local_only_warning(before)
+    if warning:
+        display(HTML(f"<div style='color:#b45309'><b>{html.escape(warning)}</b></div>"))
+
+
 def friendly_error(exc: BaseException) -> str:
     if isinstance(exc, ConfigError):
         return f"⚠️ {exc}"
@@ -331,9 +356,11 @@ def prognosis_panel() -> widgets.Widget:
 
     def send(*_):
         out.clear_output()
+        before = SESSION.local_only
         prognosis_record(SESSION.context(), best_model=best.value, strict_vs_lenient=strict.value)
         with out:
             print("✅ Prognose gespeichert.")
+            _show_local_only(before)
 
     button.on_click(_guarded(out, send))
     return widgets.VBox([best, strict, button, out])
@@ -365,11 +392,13 @@ def assignment1_panel() -> widgets.Widget:
     def start(*_):
         out.clear_output()
         button.disabled = True
+        before = SESSION.local_only
         try:
             records = run_assignment1(on_progress=update)
         finally:
             button.disabled = False
         with out:
+            _show_local_only(before)
             _show_failures(records)
             display(HTML("<b>Score · gefundene Defekte</b> (je Snippet und Bedingung)"),
                     assignment1_table(records))
@@ -421,6 +450,7 @@ def assignment2_panel() -> widgets.Widget:
     def run_submit(*_):
         out.clear_output()
         submit.disabled = True
+        before = SESSION.local_only
         try:
             records, message = submit_challenge(text.value, on_progress=update)
         finally:
@@ -428,6 +458,7 @@ def assignment2_panel() -> widgets.Widget:
             submit.disabled = SESSION.submissions_used >= CHALLENGE_MAX_SUBMISSIONS
         with out:
             print(message)
+            _show_local_only(before)
             if records:
                 _show_failures(records)
                 display(challenge_summary(records))
