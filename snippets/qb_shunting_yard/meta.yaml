@@ -1,0 +1,29 @@
+# Ground Truth für ein QuixBugs-Programm. Wird nie an ein LLM gesendet.
+id: qb_shunting_yard
+title: Infix to RPN Conversion
+code_file: shunting_yard.py
+source:
+  name: QuixBugs
+  url: https://github.com/jkoppel/QuixBugs
+  file: python_programs/shunting_yard.py
+  commit: 4257f44b0ff1181dedaedee6a447e133219fcebf
+  sha256: b010f04bbfc6158888d97498cc8e0adb323b9f8285fbf5b908c7d4c8c48cfb68
+  license: MIT
+complexity:
+  level: L4
+  cognitive: null           # wird von tools/compute_complexity.py gesetzt
+  loc: null
+spec: trailing_string       # Spezifikation steht als String am Dateiende
+tests:
+  origin: generated_from_json_testcases
+  timeout_s: 5
+defects:
+  # quixbugs_class: Klasse aus Tabelle 1 des QuixBugs-Papers; die Zuordnung zum Programm ist aus dem Diff zur korrigierten Version abgeleitet (das Paper nennt sie nicht).
+  - id: D1
+    kind: bug
+    lines: [17, 18]
+    accept_lines: [15, 18]
+    description: "fehlendes `opstack.append(token)` im else-Zweig: Operatoren landen nie auf dem Stack"
+    fix_op: insert_after
+    fix: "            opstack.append(token)"
+    quixbugs_class: Missing line
