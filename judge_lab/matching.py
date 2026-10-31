@@ -2,8 +2,9 @@
 
 1. Ein Finding trifft Defekt D, wenn sich seine Zeilen mit ``D.accept_lines`` überschneiden.
 2. Exakte Überschneidung mit ``D.lines`` geht vor dem Toleranzbereich, danach zählt der
-   kleinste Abstand. Jedes Finding trifft höchstens einen Defekt, jeder Defekt zählt höchstens
-   einmal (greedy, deterministisch sortiert).
+   kleinste Abstand, danach der schmalere Befund (damit die Reihenfolge der Befunde das
+   Ergebnis nicht ändert). Jedes Finding trifft höchstens einen Defekt, jeder Defekt zählt
+   höchstens einmal (greedy, deterministisch sortiert).
 3. Ein Treffer zählt unabhängig von der Kategorie.
 4. Nicht zugeordnete Findings der Kategorie bug/robustness sind False Positives,
 5. nicht zugeordnete maintainability/style-Findings sind neutral.
@@ -48,10 +49,11 @@ def match_findings(findings: Sequence[Finding], defects: Sequence[Defect]) -> Ma
         for defect in defects:
             if _overlaps(span, defect.accept_lines):
                 exact = 0 if _overlaps(span, defect.lines) else 1
-                candidates.append((exact, _gap(span, defect.lines), index, defect.id))
+                width = span[1] - span[0]
+                candidates.append((exact, _gap(span, defect.lines), width, index, defect.id))
 
     assignments: dict[int, str] = {}
-    for _, _, index, defect_id in sorted(candidates):
+    for _, _, _, index, defect_id in sorted(candidates):
         if index not in assignments and defect_id not in assignments.values():
             assignments[index] = defect_id
 

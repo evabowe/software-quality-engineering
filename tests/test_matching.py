@@ -79,3 +79,11 @@ def test_no_defects_gives_no_recall():
     result = match_findings([f(1)], [])
     assert result.recall is None
     assert result.fp == 1
+
+
+def test_finding_order_does_not_change_hits():
+    # Ein breiter Befund (24–26) und ein schmaler (26): unabhängig von der Reihenfolge
+    # trifft der schmale B1 und der breite Q1.
+    wide, narrow = f(24, 26, category="maintainability"), f(26)
+    assert match_findings([wide, narrow], BANK).found_defect_ids == ("B1", "Q1")
+    assert match_findings([narrow, wide], BANK).found_defect_ids == ("B1", "Q1")
