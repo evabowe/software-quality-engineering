@@ -111,3 +111,11 @@ def test_prompt_snapshot():
         SNAPSHOT.write_text(text, encoding="utf-8")
         pytest.fail("Snapshot neu erzeugt – bitte prüfen und committen.")
     assert text == SNAPSHOT.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("snippet", SNIPPETS, ids=lambda s: s.id)
+def test_prompt_does_not_name_the_benchmark(snippet):
+    # Der Hinweis „QuixBugs“ würde dem Judge verraten, dass genau ein Defekt existiert.
+    text = _text(build_prompt(snippet, attitude="objective", with_tests=True)).lower()
+    assert "quixbugs" not in text
+    assert "json_testcases" not in text

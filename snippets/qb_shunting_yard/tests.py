@@ -1,8 +1,4 @@
-"""Tests für shunting_yard.
-
-Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs
-json_testcases/shunting_yard.json (die ersten 6 Testfälle, die QuixBugs nicht überspringt).
-"""
+"""Tests für shunting_yard (automatisch erzeugt, Herkunft siehe meta.yaml)."""
 
 from shunting_yard import shunting_yard
 

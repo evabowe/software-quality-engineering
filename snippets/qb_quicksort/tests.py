@@ -1,8 +1,4 @@
-"""Tests für quicksort.
-
-Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs
-json_testcases/quicksort.json (die ersten 6 Testfälle, die QuixBugs nicht überspringt).
-"""
+"""Tests für quicksort (automatisch erzeugt, Herkunft siehe meta.yaml)."""
 
 from quicksort import quicksort
 

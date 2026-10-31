@@ -1,8 +1,4 @@
-"""Tests für bitcount.
-
-Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs
-json_testcases/bitcount.json (die ersten 6 Testfälle, die QuixBugs nicht überspringt).
-"""
+"""Tests für bitcount (automatisch erzeugt, Herkunft siehe meta.yaml)."""
 
 from bitcount import bitcount
 

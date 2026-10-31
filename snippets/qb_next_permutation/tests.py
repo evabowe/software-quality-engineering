@@ -1,8 +1,4 @@
-"""Tests für next_permutation.
-
-Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs
-json_testcases/next_permutation.json (die ersten 6 Testfälle, die QuixBugs nicht überspringt).
-"""
+"""Tests für next_permutation (automatisch erzeugt, Herkunft siehe meta.yaml)."""
 
 from next_permutation import next_permutation
 

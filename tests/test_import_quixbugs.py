@@ -82,3 +82,8 @@ def test_render_tests_skips_cases_quixbugs_skips():
     text = render_tests("levenshtein", cases)
     assert "amanaplanacanalpanama" not in text
     assert text.count("def test_case_") == 6
+
+
+def test_rendered_tests_do_not_name_the_benchmark():
+    text = render_tests("quicksort", QUICKSORT_CASES).lower()
+    assert "quixbugs" not in text and "json_testcases" not in text

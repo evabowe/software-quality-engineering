@@ -38,12 +38,10 @@ def render_tests(name: str, cases: list) -> str:
     """Erzeugt tests.py aus JSON-Testfällen der Form ``[argumente, erwartet]``."""
     skipped = SKIPPED_CASES.get(name, [])
     cases = [case for case in cases if case[0] not in skipped]
+    # Der Header nennt die Herkunft bewusst nicht: tests.py wird dem Judge gezeigt, und der
+    # Name des Benchmarks würde verraten, dass genau ein Defekt existiert (Herkunft: meta.yaml).
     parts = [
-        f'"""Tests für {name}.',
-        "",
-        "Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs",
-        f"json_testcases/{name}.json (die ersten {MAX_CASES} Testfälle, die QuixBugs nicht überspringt).",
-        '"""',
+        f'"""Tests für {name} (automatisch erzeugt, Herkunft siehe meta.yaml)."""',
         "",
         f"from {name} import {name}",
     ]

@@ -1,8 +1,4 @@
-"""Tests für levenshtein.
-
-Automatisch erzeugt von tools/import_quixbugs.py aus QuixBugs
-json_testcases/levenshtein.json (die ersten 6 Testfälle, die QuixBugs nicht überspringt).
-"""
+"""Tests für levenshtein (automatisch erzeugt, Herkunft siehe meta.yaml)."""
 
 from levenshtein import levenshtein
 
