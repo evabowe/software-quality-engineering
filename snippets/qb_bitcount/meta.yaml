@@ -1,0 +1,29 @@
+# Ground Truth für ein QuixBugs-Programm. Wird nie an ein LLM gesendet.
+id: qb_bitcount
+title: Bitcount
+code_file: bitcount.py
+source:
+  name: QuixBugs
+  url: https://github.com/jkoppel/QuixBugs
+  file: python_programs/bitcount.py
+  commit: 4257f44b0ff1181dedaedee6a447e133219fcebf
+  sha256: 585fc5e7140a87d698574ad74acfd4cf5de4e03e460dea7e87725e2694b60b8c
+  license: MIT
+complexity:
+  level: L1
+  cognitive: null           # wird von tools/compute_complexity.py gesetzt
+  loc: null
+spec: trailing_string       # Spezifikation steht als String am Dateiende
+tests:
+  origin: generated_from_json_testcases
+  timeout_s: 5
+defects:
+  # quixbugs_class: Klasse aus Tabelle 1 des QuixBugs-Papers; die Zuordnung zum Programm ist aus dem Diff zur korrigierten Version abgeleitet (das Paper nennt sie nicht).
+  - id: D1
+    kind: bug
+    lines: [5, 5]
+    accept_lines: [4, 6]
+    description: "`n ^= n - 1` statt `n &= n - 1`: das niedrigste 1-Bit wird nicht gelöscht, die Schleife terminiert nicht"
+    fix_op: replace
+    fix: "        n &= n - 1"
+    quixbugs_class: Incorrect assignment operator
