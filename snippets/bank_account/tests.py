@@ -1,6 +1,6 @@
 import unittest
 
-from code_with_defects.bank_account import BankAccount
+from bank_account import BankAccount
 
 
 class TestCreateAccount(unittest.TestCase):

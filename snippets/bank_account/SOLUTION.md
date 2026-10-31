@@ -1,14 +1,16 @@
-# code_with_defects
+# bank_account – Lösung
+
+> **Achtung, Lösung:** Diese Datei beschreibt die eingebauten Defekte. Sie wird im Hands-on-Notebook nie angezeigt und darf nicht in einen Judge-Prompt gelangen.
 
 ## Tests ausführen: pytest verwenden
 
-Die Tests laufen mit **pytest**. Die Konfiguration steht in `pyproject.toml` im Projektordner (`src` wird dort in den Suchpfad aufgenommen, damit Imports wie `from code_with_defects.bank_account import BankAccount` funktionieren).
+Die Tests laufen mit **pytest**. Sie schlagen absichtlich fehl (siehe unten) und gehören deshalb nicht zur normalen Testsuite des Projekts.
 
 Einmalig einrichten:
 1. `pip install pytest`
 2. In PyCharm: **Settings → Tools → Python Integrated Tools → Default test runner: pytest**
 
-Danach per Rechtsklick auf eine Testdatei oder den Ordner `tests` und **Run** starten. Im Terminal geht es von der Projektwurzel aus mit `python -m pytest`.
+Im Terminal aus diesem Ordner heraus: `python -m pytest tests.py`. Die Projekt-Testsuite prüft zusätzlich automatisch, dass genau die unten dokumentierten Tests fehlschlagen (`tests/test_ground_truth.py`).
 
 ## Eingebaute Fehler
 
