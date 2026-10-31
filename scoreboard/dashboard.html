@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root { --ink: #1f2933; --muted: #616e7c; --line: #d9e2ec; --bg: #ffffff; --soft: #f5f7fa; --accent: #2f5fd0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 32px 64px; font: 20px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+           color: var(--ink); background: var(--bg); }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px 32px; margin-bottom: 8px; }
+    h1 { font-size: 34px; margin: 0; }
+    h2 { font-size: 26px; margin: 40px 0 4px; }
+    .hint { color: var(--muted); font-size: 17px; margin: 0 0 12px; }
+    .status { color: var(--muted); font-size: 17px; }
+    nav { position: sticky; top: 0; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line);
+          display: flex; flex-wrap: wrap; gap: 8px; z-index: 1; }
+    nav a { color: var(--accent); text-decoration: none; font-size: 17px; padding: 4px 10px; border-radius: 6px;
+            background: var(--soft); }
+    label { font-size: 17px; }
+    button { font: inherit; font-size: 17px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent);
+             background: #fff; border-radius: 6px; cursor: pointer; }
+    table { border-collapse: collapse; margin: 8px 0; }
+    th, td { border: 1px solid var(--line); padding: 8px 14px; text-align: center; }
+    th { background: var(--soft); font-weight: 600; }
+    td.left, th.left { text-align: left; }
+    .grid { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+    .empty { color: var(--muted); font-style: italic; }
+    .prompt { white-space: pre-wrap; text-align: left; font: 15px/1.4 ui-monospace, Menlo, monospace;
+              max-width: 70ch; max-height: 18em; overflow: auto; }
+    .chart { max-width: 900px; }
+    #resolution { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Scoreboard · LLM-as-a-Judge</h1>
+    <span class="status">Session: <strong id="session"></strong> · <span id="status">lädt …</span></span>
+    <label><input type="checkbox" id="precomputed"> Vorab-Daten einblenden</label>
+  </header>
+  <nav>
+    <a href="#rq2">RQ2 Haltung</a><a href="#rq1">RQ1 Übereinstimmung</a><a href="#rq3">RQ3 Komplexität</a>
+    <a href="#extra">Tests &amp; Contamination</a><a href="#prognosis">Prognosen</a>
+    <a href="#leaderboard">Leaderboard</a><a href="#gallery">Prompt-Galerie</a><a href="#resolution-box">Auflösung</a>
+  </nav>
+
+  <section id="rq2">
+    <h2>RQ2 · Verschiebt die Haltung die Note?</h2>
+    <p class="hint">Ø gewichteter Score (0–10) je Modell und Haltung, Auftrag 1</p>
+    <div id="scoreHeatmap"></div>
+    <h2>… und auch die Fehlerfindung?</h2>
+    <p class="hint">Links Ø Recall (Anteil gefundener Defekte), rechts Ø False Positives pro Lauf</p>
+    <div class="grid"><div id="recallHeatmap"></div><div id="fpHeatmap"></div></div>
+  </section>
+
+  <section id="rq1">
+    <h2>RQ1 · Wie einig sind sich die Judges?</h2>
+    <p class="hint">Anteil der Läufe, in denen ein Modell den Defekt gefunden hat</p>
+    <div id="defectByModel"></div>
+    <p class="hint">Spearman-ρ der Scores zwischen den Modellen (gleiche Snippets, Haltungen, Testvarianten)</p>
+    <div id="spearman"></div>
+  </section>
+
+  <section id="rq3">
+    <h2>RQ3 · Recall über die Komplexitätsstufe</h2>
+    <p class="hint">QuixBugs-Snippets L1–L5; bank_account hat keine Stufe</p>
+    <div class="chart"><canvas id="levelChart" height="110"></canvas></div>
+  </section>
+
+  <section id="extra">
+    <h2>Hilft der Testcode als Kontext?</h2>
+    <div id="testsDelta"></div>
+    <h2>Öffentlicher Benchmark vs. unbekannter Code</h2>
+    <p class="hint">QuixBugs ist seit 2017 öffentlich (vermutlich in den Trainingsdaten), bank_account nicht</p>
+    <div id="publicVsPrivate"></div>
+    <h2>Formattreue</h2>
+    <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren</p>
+    <div id="parseFailures"></div>
+  </section>
+
+  <section id="prognosis">
+    <h2>Prognosen</h2>
+    <div id="predictions"></div>
+  </section>
+
+  <section id="leaderboard">
+    <h2>Leaderboard Prompt-Challenge</h2>
+    <p class="hint">Beste Einreichung je Gruppe · Punkte = 2 × Treffer − 1 × Fehlalarm über alle Snippets</p>
+    <div id="leaderboardTable"></div>
+  </section>
+
+  <section id="gallery">
+    <h2>Prompt-Galerie</h2>
+    <div id="galleryTable"></div>
+  </section>
+
+  <section id="resolution-box">
+    <h2>Auflösung</h2>
+    <button id="reveal">Ground Truth anzeigen</button>
+    <div id="resolution"></div>
+  </section>
+
+  <script>
+    const SESSION = <?= session ?>;
+    const REFRESH_MS = 10000;
+    let chart = null;
+
+    function esc(value) {
+      return String(value === null || value === undefined ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function fmt(value, digits) {
+      if (value === null || value === undefined || value === "") return "–";
+      return Number(value).toLocaleString("de-DE", { maximumFractionDigits: digits === undefined ? 2 : digits });
+    }
+
+    // Farbskala von Rot (niedrig) über Gelb zu Grün (hoch); umgekehrt für „weniger ist besser“.
+    function color(value, max, invert) {
+      if (value === null || value === undefined) return "#ffffff";
+      let t = Math.max(0, Math.min(1, value / max));
+      if (invert) t = 1 - t;
+      return "hsl(" + Math.round(t * 120) + ", 70%, 85%)";
+    }
+
+    function table(headers, rows) {
+      if (!rows.length) return '<p class="empty">Noch keine Daten.</p>';
+      const head = "<tr>" + headers.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr>";
+      return "<table>" + head + rows.join("") + "</table>";
+    }
+
+    function heatmap(data, models, attitudes, max, invert, digits) {
+      return table([""].concat(attitudes), models.map((m) =>
+        "<tr><th class='left'>" + esc(m) + "</th>" + attitudes.map((a) => {
+          const v = data[m][a];
+          return "<td style='background:" + color(v, max, invert) + "'>" + fmt(v, digits) + "</td>";
+        }).join("") + "</tr>"));
+    }
+
+    function render(d) {
+      document.getElementById("status").textContent =
+        d.runs + " Läufe · aktualisiert " + new Date().toLocaleTimeString("de-DE");
+      const models = d.models;
+
+      document.getElementById("scoreHeatmap").innerHTML = heatmap(d.scoreHeatmap, models, d.attitudes, 10, false, 1);
+      document.getElementById("recallHeatmap").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, false, 2);
+      document.getElementById("fpHeatmap").innerHTML = heatmap(d.fpHeatmap, models, d.attitudes, 3, true, 1);
+
+      document.getElementById("defectByModel").innerHTML = table(["Snippet", "Defekt", "Art"].concat(models),
+        d.defectByModel.map((row) => "<tr><td class='left'>" + esc(row.snippet_id) + "</td><td>" + esc(row.defect_id) +
+          "</td><td>" + esc(row.kind) + "</td>" + models.map((m) =>
+            "<td style='background:" + color(row.rates[m], 1) + "'>" + fmt(row.rates[m], 2) + "</td>").join("") + "</tr>"));
+      document.getElementById("spearman").innerHTML = table([""].concat(models), models.map((a) =>
+        "<tr><th class='left'>" + esc(a) + "</th>" + models.map((b) => "<td>" + fmt(d.spearman[a][b], 2) + "</td>").join("") + "</tr>"));
+
+      const datasets = models.map((m) => ({ label: m, data: d.recallByLevel.series[m], spanGaps: true, tension: 0.2 }));
+      if (window.Chart) {
+        if (!chart) {
+          chart = new Chart(document.getElementById("levelChart"), {
+            type: "line",
+            data: { labels: d.recallByLevel.levels, datasets: datasets },
+            options: { animation: false, scales: { y: { min: 0, max: 1, title: { display: true, text: "Recall" } } },
+                       plugins: { legend: { labels: { font: { size: 16 } } } } },
+          });
+        } else {
+          chart.data.datasets = datasets;
+          chart.update();
+        }
+      }
+
+      document.getElementById("testsDelta").innerHTML = table(
+        ["Modell", "Recall mit Tests", "Recall ohne", "Δ Recall", "FP mit Tests", "FP ohne"],
+        models.map((m) => {
+          const t = d.testsDelta[m];
+          const delta = t.recallWith === null || t.recallWithout === null ? null : t.recallWith - t.recallWithout;
+          return "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(t.recallWith) + "</td><td>" + fmt(t.recallWithout) +
+            "</td><td>" + fmt(delta) + "</td><td>" + fmt(t.fpWith, 1) + "</td><td>" + fmt(t.fpWithout, 1) + "</td></tr>";
+        }));
+      document.getElementById("publicVsPrivate").innerHTML = table(["Modell", "Recall QuixBugs", "Recall bank_account"],
+        models.map((m) => "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(d.publicVsPrivate[m].quixbugs) +
+          "</td><td>" + fmt(d.publicVsPrivate[m].bank_account) + "</td></tr>"));
+      document.getElementById("parseFailures").innerHTML = table(["Modell", "unlesbar", "Läufe"],
+        Object.keys(d.parseFailures).sort().map((m) => "<tr><th class='left'>" + esc(m) + "</th><td>" +
+          d.parseFailures[m].failed + "</td><td>" + d.parseFailures[m].total + "</td></tr>"));
+
+      document.getElementById("predictions").innerHTML = table(["Gruppe", "Bester Judge (Prognose)", "strict vs. lenient"],
+        d.predictions.map((p) => "<tr><td class='left'>" + esc(p.group) + "</td><td>" + esc(p.best_model) +
+          "</td><td class='left'>" + esc(p.strict_vs_lenient) + "</td></tr>"));
+
+      document.getElementById("leaderboardTable").innerHTML = table(
+        ["Platz", "Gruppe", "Modell", "Einreichung", "Punkte", "Punkte Referenzmodell"],
+        d.leaderboard.map((e, i) => "<tr><td>" + (i + 1) + "</td><td class='left'>" + esc(e.group) + "</td><td>" +
+          esc(e.model_key) + "</td><td>" + fmt(e.submission_no, 0) + "</td><td><strong>" + fmt(e.points, 0) +
+          "</strong></td><td>" + fmt(e.reference_points, 0) + "</td></tr>"));
+      document.getElementById("galleryTable").innerHTML = table(["Gruppe", "Nr.", "Punkte", "Referenz", "Prompt"],
+        d.gallery.map((g) => "<tr><td class='left'>" + esc(g.group) + "</td><td>" + fmt(g.submission_no, 0) + "</td><td>" +
+          fmt(g.points, 0) + "</td><td>" + fmt(g.reference_points, 0) + "</td><td class='prompt'>" +
+          esc(g.prompt_text) + "</td></tr>"));
+
+      document.getElementById("resolution").innerHTML = table(["Snippet", "Defekt", "Art", "Zeilen", "Beschreibung"],
+        d.resolution.map((r) => "<tr><td class='left'>" + esc(r.snippet_id) + "</td><td>" + esc(r.defect_id) +
+          "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.lines) + "</td><td class='left'>" + esc(r.description) + "</td></tr>"));
+    }
+
+    function load() {
+      if (!window.google || !google.script) {
+        document.getElementById("status").textContent = "Nur als Apps-Script-Web-App lauffähig (siehe DEPLOY.md).";
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler((err) => {
+          document.getElementById("status").textContent = "Fehler beim Laden: " + err.message;
+        })
+        .getData(SESSION, document.getElementById("precomputed").checked);
+    }
+
+    document.getElementById("session").textContent = SESSION;
+    document.getElementById("precomputed").addEventListener("change", load);
+    document.getElementById("reveal").addEventListener("click", () => {
+      document.getElementById("resolution").style.display = "block";
+      document.getElementById("reveal").style.display = "none";
+    });
+    load();
+    setInterval(load, REFRESH_MS);
+  </script>
+</body>
+</html>
