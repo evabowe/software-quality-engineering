@@ -1,0 +1,29 @@
+# Ground Truth für ein QuixBugs-Programm. Wird nie an ein LLM gesendet.
+id: qb_next_permutation
+title: Next Permutation
+code_file: next_permutation.py
+source:
+  name: QuixBugs
+  url: https://github.com/jkoppel/QuixBugs
+  file: python_programs/next_permutation.py
+  commit: 4257f44b0ff1181dedaedee6a447e133219fcebf
+  sha256: 14ffc36c80bf3bba8db91b7e0fa6be14a8011130ddeaccf33ed62638eac1b25b
+  license: MIT
+complexity:
+  level: L5
+  cognitive: null           # wird von tools/compute_complexity.py gesetzt
+  loc: null
+spec: trailing_string       # Spezifikation steht als String am Dateiende
+tests:
+  origin: generated_from_json_testcases
+  timeout_s: 5
+defects:
+  # quixbugs_class: Klasse aus Tabelle 1 des QuixBugs-Papers; die Zuordnung zum Programm ist aus dem Diff zur korrigierten Version abgeleitet (das Paper nennt sie nicht).
+  - id: D1
+    kind: bug
+    lines: [6, 6]
+    accept_lines: [5, 6]
+    description: "vertauschte Operanden: `perm[j] < perm[i]` statt `perm[i] < perm[j]`"
+    fix_op: replace
+    fix: "                if perm[i] < perm[j]:"
+    quixbugs_class: Variable swap
