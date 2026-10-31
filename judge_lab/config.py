@@ -9,3 +9,6 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 
 # Haltungen aus dem Paper; Dateinamen in prompts/attitudes/
 ATTITUDES = ("strict", "objective", "lenient")
+
+# Gewichte der Bewertungsdimensionen (prompts/scale_iso25010.md); Summe 1.0
+WEIGHTS = {"functional_correctness": 0.40, "reliability": 0.20, "maintainability": 0.25, "readability": 0.15}
