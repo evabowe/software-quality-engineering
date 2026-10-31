@@ -14,6 +14,7 @@ from __future__ import annotations
 import html
 import json
 import threading
+import time
 import traceback
 from dataclasses import dataclass, field
 
@@ -34,11 +35,14 @@ from judge_lab.config import (
 )
 from judge_lab.llm import ConfigError, MockClient, make_client
 from judge_lab.matching import MatchResult
-from judge_lab.prompts import lint_challenge_prompt
+from judge_lab.prompts import lint_challenge_prompt, prompt_hash
 from judge_lab.runner import RunContext, assignment1_variants, prognosis_record, run_challenge, run_matrix
 from judge_lab.scoreboard import Scoreboard
 from judge_lab.scoring import challenge_points
 from judge_lab.snippets import get_snippet, load_snippets
+
+# Klicks, die so kurz nach dem Ende eines Laufs ankommen, gelten als Doppelklick.
+DOUBLE_CLICK_S = 1.0
 
 STRICT_VS_LENIENT_OPTIONS = (
     "strict findet mehr Fehler",
@@ -56,6 +60,7 @@ class Session:
     session_id: str = DEFAULT_SESSION_ID
     scoreboard: Scoreboard | None = None
     submissions_used: int = 0
+    last_submission_hash: str = ""
     local_only: int = 0  # Läufe, die das Scoreboard nicht erreicht haben (nur in der CSV)
     a1_records: list = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
@@ -138,9 +143,12 @@ def submit_challenge(prompt_text: str, on_progress=None) -> tuple[list[dict] | N
         return None, "Der Prompt ist leer."
     if SESSION.submissions_used >= CHALLENGE_MAX_SUBMISSIONS:
         return None, f"Ihr habt keine Einreichung mehr übrig ({CHALLENGE_MAX_SUBMISSIONS} von {CHALLENGE_MAX_SUBMISSIONS})."
+    if prompt_hash(prompt_text) == SESSION.last_submission_hash:
+        return None, "Diesen Prompt habt ihr schon eingereicht – ändert ihn vor der nächsten Einreichung."
     SESSION.require_setup()
-    # Vor dem Lauf hochzählen, damit ein Doppelklick keine zusätzliche Einreichung erzeugt.
+    # Vor dem Lauf hochzählen, damit ein abgebrochener Lauf nicht wiederholt eingereicht werden kann.
     SESSION.submissions_used += 1
+    SESSION.last_submission_hash = prompt_hash(prompt_text)
     number = SESSION.submissions_used
     clients = {"group": SESSION.client(), "reference": SESSION.reference_client()}
     records = run_challenge(SESSION.context(), clients, prompt_text, snippets=load_snippets(), submit=True,
@@ -299,6 +307,27 @@ def _show_failures(records: list[dict]) -> None:
                      f"(zählen nicht als Ergebnis des Judges):</b><ul>{items}</ul></div>"))
 
 
+def _debounced(action, now=time.monotonic):
+    """Ignoriert Klicks während eines Laufs und kurz danach.
+
+    ipywidgets arbeitet Klicks nacheinander ab; ein Doppelklick startet den zweiten Lauf also
+    erst, wenn der erste fertig ist (und der Button wieder aktiv). Genau diesen Klick verwerfen wir.
+    """
+    state = {"busy": False, "finished": float("-inf")}
+
+    def handler(*args):
+        if state["busy"] or now() - state["finished"] < DOUBLE_CLICK_S:
+            return
+        state["busy"] = True
+        try:
+            action(*args)
+        finally:
+            state["busy"] = False
+            state["finished"] = now()
+
+    return handler
+
+
 def _guarded(out: widgets.Output, action):
     """Fehler in Button-Handlern als deutsche Meldung statt Traceback anzeigen."""
 
@@ -410,7 +439,7 @@ def assignment1_panel() -> widgets.Widget:
             details.selected_index = None
             display(details)
 
-    button.on_click(_guarded(out, start))
+    button.on_click(_guarded(out, _debounced(start)))
     return widgets.VBox([button, progress, out])
 
 
@@ -465,6 +494,6 @@ def assignment2_panel() -> widgets.Widget:
 
     text.observe(check, names="value")
     check()
-    probe.on_click(_guarded(out, run_probe))
-    submit.on_click(_guarded(out, run_submit))
+    probe.on_click(_guarded(out, _debounced(run_probe)))
+    submit.on_click(_guarded(out, _debounced(run_submit)))
     return widgets.VBox([text, lint, widgets.HBox([probe_choice, probe]), submit, progress, out])

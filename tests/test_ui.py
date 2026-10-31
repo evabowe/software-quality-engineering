@@ -64,9 +64,9 @@ def test_unreadable_answer_is_marked_in_table():
 
 def test_submit_counts_and_blocks_after_max():
     for number in range(1, CHALLENGE_MAX_SUBMISSIONS + 1):
-        records, message = ui.submit_challenge("You are a careful reviewer.")
+        records, message = ui.submit_challenge(f"You are a careful reviewer, version {number}.")
         assert records and f"{number}/{CHALLENGE_MAX_SUBMISSIONS}" in message
-    records, message = ui.submit_challenge("You are a careful reviewer.")
+    records, message = ui.submit_challenge("You are a careful reviewer, final version.")
     assert records is None and "keine Einreichung mehr" in message
     assert ui.SESSION.submissions_used == CHALLENGE_MAX_SUBMISSIONS
 
@@ -153,3 +153,22 @@ def test_warns_when_runs_are_only_saved_locally():
     warning = ui.local_only_warning(before)
     assert "36 Läufe" in warning and "lokal" in warning
     assert ui.SESSION.local_only == before + 36
+
+
+def test_queued_double_click_is_ignored():
+    # ipywidgets arbeitet Klicks nacheinander ab: der zweite Klick kommt direkt nach dem Ende des ersten an.
+    calls, clock = [], [0.0]
+    handler = ui._debounced(lambda *_: calls.append(clock[0]), now=lambda: clock[0])
+    handler()
+    clock[0] = 0.3
+    handler()
+    clock[0] = 5.0
+    handler()
+    assert calls == [0.0, 5.0]
+
+
+def test_same_prompt_is_not_submitted_twice():
+    ui.submit_challenge("You are a careful reviewer.")
+    records, message = ui.submit_challenge("  You are a careful reviewer.\n")
+    assert records is None and "schon eingereicht" in message
+    assert ui.SESSION.submissions_used == 1
