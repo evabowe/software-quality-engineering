@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <base target="_top">
   <meta charset="utf-8">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <style>
@@ -31,6 +30,7 @@
               max-width: 70ch; max-height: 18em; overflow: auto; }
     .chart { max-width: 900px; }
     #resolution { display: none; }
+    section { scroll-margin-top: 70px; }
   </style>
 </head>
 <body>
@@ -220,6 +220,16 @@
         })
         .getData(SESSION, document.getElementById("precomputed").checked);
     }
+
+    // Apps Script zeigt die Seite in einem iframe; Sprunglinks (#rq2 …) navigieren dort nicht
+    // zuverlässig. Deshalb scrollen die Links per Skript zum Abschnitt.
+    document.querySelectorAll("nav a").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const target = document.getElementById(link.getAttribute("href").slice(1));
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
 
     document.getElementById("session").textContent = SESSION;
     document.getElementById("precomputed").addEventListener("change", load);
