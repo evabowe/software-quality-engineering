@@ -16,7 +16,10 @@ import ipywidgets as widgets
 from IPython.display import display
 
 from judge_lab import ui
-from judge_lab.config import MODELS
+from judge_lab.config import SCOREBOARD_URL
+from judge_lab.join import ServerUnreachable
+from judge_lab.llm import ConfigError
+from judge_lab.ui import judge_name
 
 TABS = ("Start", "1 Gutachten", "2 LLM-Judge", "3 Alle Beispiele", "4 Challenge", "5 Abschluss")
 LAST_PHASE = len(TABS) - 1
@@ -64,11 +67,6 @@ class AppState:
 STATE = AppState()
 
 
-def judge_name(model_key: str) -> str:
-    """Kurzname des Judges ohne Klammerzusatz, z. B. „DeepSeek“."""
-    return MODELS[model_key]["label"].split(" (")[0]
-
-
 def status_text() -> str:
     session = ui.SESSION
     if not session.group:
@@ -82,10 +80,53 @@ def _block(text: str) -> widgets.HTML:
     return widgets.HTML(text)
 
 
-def _panels() -> list[Callable[[], widgets.Widget]]:
+@dataclass
+class StartPanel:
+    widget: widgets.Widget
+    code: widgets.Text
+    button: widgets.Button
+    message: widgets.HTML
+    advanced: widgets.Accordion
+
+
+def _message(text: str, color: str = "#1f2933") -> str:
+    return f"<div style='color:{color};font-size:1.1em'><b>{html.escape(text)}</b></div>"
+
+
+def start_panel(on_change: Callable[[], None]) -> StartPanel:
+    """Reiter „Start“: Gruppencode eingeben; darunter eingeklappt der Notfall-Weg (Gruppe + Key, Probemodus)."""
+    intro = _block("<p>Tippt den <b>Gruppencode</b> von der Folie ab und klickt auf „Los geht's“.</p>")
+    code = widgets.Text(placeholder="z. B. K7Q2", description="Gruppencode:", style={"description_width": "initial"})
+    button = widgets.Button(description="Los geht's", button_style="primary")
+    message = widgets.HTML()
+    advanced = widgets.Accordion(children=[ui.setup_panel(on_saved=on_change)])
+    advanced.set_title(0, "Erweitert (nur wenn der Code nicht klappt)")
+    advanced.selected_index = None if SCOREBOARD_URL else 0
+    debug = widgets.Output()
+
+    def go(*_):
+        message.value = _message("Verbinde …", "#616e7c")
+        try:
+            message.value = _message(ui.join_group(code.value))
+        except ServerUnreachable as exc:
+            advanced.selected_index = 0
+            message.value = _message(f"⚠️ {exc}", "#b45309")
+        except ConfigError as exc:
+            message.value = _message(f"⚠️ {exc}", "#b45309")
+        except Exception as exc:  # noqa: BLE001 – Traceback nur im Debug-Bereich
+            message.value = ""
+            ui._show_error(debug, exc)
+        on_change()
+
+    button.on_click(ui._debounced(go))
+    widget = widgets.VBox([intro, widgets.HBox([code, button]), message, debug, advanced])
+    return StartPanel(widget, code, button, message, advanced)
+
+
+def _panels(start: StartPanel) -> list[Callable[[], widgets.Widget]]:
     """Ein Baukasten je Reiter; gebaut wird erst beim Entsperren."""
     return [
-        ui.setup_panel,
+        lambda: start.widget,
         ui.snippet_viewer,
         lambda: widgets.VBox([ui.prognosis_panel(), _block(TIPS_STEP2)]),
         ui.assignment1_panel,
@@ -99,6 +140,7 @@ class AppView:
     tab: widgets.Tab
     status: widgets.HTML
     containers: list[widgets.Box]
+    start: StartPanel
     factories: list[Callable[[], widgets.Widget]]
     built: dict[int, widgets.Widget] = field(default_factory=dict)
 
@@ -131,7 +173,11 @@ def build() -> AppView:
     tab = widgets.Tab(children=containers)
     for index, title in enumerate(TABS):
         tab.set_title(index, title)
-    view = AppView(tab=tab, status=widgets.HTML(), containers=containers, factories=_panels())
+    status = widgets.HTML()
+    views: list[AppView] = []
+    start = start_panel(on_change=lambda: views and views[0].refresh_status())
+    view = AppView(tab=tab, status=status, containers=containers, start=start, factories=_panels(start))
+    views.append(view)
     view.render()
     _CURRENT = view
     return view

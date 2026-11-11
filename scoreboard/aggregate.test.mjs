@@ -158,3 +158,30 @@ test("Läufe mit Infrastrukturfehler (parse_ok leer) zählen nicht in die Wertun
   assert.deepEqual(data.parseFailures.kimi, { failed: 1, total: 2 });
   assert.equal(data.infraErrors.kimi, 1);
 });
+
+test("join: Code ist groß/klein-unabhängig, Leerzeichen zählen nicht", () => {
+  const { joinLookup } = require("./Code.gs");
+  const keys = [{ code: "K7Q2", group: "Gruppe 2", openrouter_key: "sk-x", active: true }];
+  assert.deepEqual(joinLookup(keys, { token: "t" }, { code: " k7 q2 ", token: "t" }),
+                   { status: "ok", group: "Gruppe 2", key: "sk-x" });
+});
+
+test("join: ohne gültiges Token wird nichts herausgegeben", () => {
+  const { joinLookup } = require("./Code.gs");
+  const keys = [{ code: "K7Q2", group: "Gruppe 2", openrouter_key: "sk-x", active: "TRUE" }];
+  [{ code: "K7Q2" }, { code: "K7Q2", token: "falsch" }, { code: "K7Q2", token: "" }].forEach((params) => {
+    const answer = joinLookup(keys, { token: "t" }, params);
+    assert.equal(answer.status, "error");
+    assert.equal(JSON.stringify(answer).indexOf("sk-x"), -1);
+  });
+  // Auch ein leeres Token im Sheet öffnet nichts.
+  assert.equal(joinLookup(keys, { token: "" }, { code: "K7Q2", token: "" }).status, "error");
+});
+
+test("join: unbekannte und inaktive Codes", () => {
+  const { joinLookup } = require("./Code.gs");
+  const keys = [{ code: "K7Q2", group: "Gruppe 2", openrouter_key: "sk-x", active: "FALSE" }];
+  assert.deepEqual(joinLookup(keys, { token: "t" }, { code: "K7Q2", token: "t" }),
+                   { status: "error", message: "Code unbekannt" });
+  assert.equal(joinLookup(keys, { token: "t" }, { code: "", token: "t" }).status, "error");
+});

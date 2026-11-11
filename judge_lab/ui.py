@@ -23,7 +23,7 @@ import pandas as pd
 import requests
 from IPython.display import HTML, display
 
-from judge_lab import ollama_colab
+from judge_lab import join, ollama_colab
 from judge_lab.config import (
     CHALLENGE_MAX_SUBMISSIONS,
     DEFAULT_SESSION_ID,
@@ -122,6 +122,18 @@ def configure(group: str, api_key: str, *, use_fallback: bool = False, mock: boo
     SESSION.session_id = f"{DEFAULT_SESSION_ID}-mock" if mock else DEFAULT_SESSION_ID
     SESSION.scoreboard = SESSION.scoreboard or _scoreboard()
     return f"✅ Bereit – {group}, euer Judge: {MODELS[model_key]['label']}"
+
+
+def judge_name(model_key: str) -> str:
+    """Kurzname des Judges ohne Klammerzusatz, z. B. „DeepSeek“."""
+    return MODELS[model_key]["label"].split(" (")[0]
+
+
+def join_group(code: str) -> str:
+    """Gruppencode → Gruppe und Key vom Code-Server, dann wie ``configure``."""
+    group, api_key = join.join(code, url=SCOREBOARD_URL, token=SCOREBOARD_TOKEN, session_id=DEFAULT_SESSION_ID)
+    configure(group, api_key)
+    return f"✅ Ihr seid {group} – euer Judge heißt {judge_name(SESSION.model_key)}"
 
 
 def run_assignment1(on_progress=None) -> list[dict]:
@@ -351,7 +363,7 @@ def _initial_api_key() -> str:
         return ""
 
 
-def setup_panel() -> widgets.Widget:
+def setup_panel(on_saved=None) -> widgets.Widget:
     group = widgets.Dropdown(options=list(GROUPS), value=SESSION.group, description="Gruppe:")
     model = widgets.HTML()
     key = widgets.Password(value=SESSION.api_key or _initial_api_key(), description="API-Key:",
@@ -370,6 +382,8 @@ def setup_panel() -> widgets.Widget:
         message = configure(group.value, key.value.strip(), use_fallback=fallback.value, mock=mock.value)
         with out:
             display(HTML(f"<b>{html.escape(message)}</b>"))
+        if on_saved:
+            on_saved()
 
     group.observe(show_model, names="value")
     show_model()

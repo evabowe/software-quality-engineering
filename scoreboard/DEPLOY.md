@@ -13,6 +13,7 @@ Das Scoreboard ist eine Apps-Script-Web-App an einem Google Sheet. Die Notebooks
    | `session_id` | aktive Session, z. B. `rehearsal-1` oder `2026-11-19-live` |
 
    Die Tabs `runs` und `defects` legt das Skript selbst an.
+3. Tab `keys` für die Gruppencodes anlegen (Kopfzeile `code | group | openrouter_key | active`), siehe [GUIDE_INSTRUCTOR.md](../docs/GUIDE_INSTRUCTOR.md#gruppencodes-anlegen). Das Sheet bleibt privat.
 
 ## 2. Skript einfügen
 

@@ -76,3 +76,44 @@ def test_rebuild_keeps_session_state():
     app.build()
     app.build()  # Zelle zweimal ausgeführt
     assert (ui.SESSION.group, ui.SESSION.submissions_used) == ("Gruppe 3", 2)
+
+
+def test_start_with_code_configures_and_updates_status(monkeypatch):
+    monkeypatch.setattr(ui.join, "join", lambda code, **_: ("Gruppe 2", "sk-from-code"))
+    view = app.build()
+    start = view.start
+    start.code.value = " k7q2 "
+    start.button.click()
+    assert "Ihr seid Gruppe 2" in start.message.value
+    assert view.status.value.count("Gruppe 2 · Judge: DeepSeek") == 1
+
+
+def test_start_unreachable_opens_advanced(monkeypatch):
+    def unreachable(code, **_):
+        raise ui.join.ServerUnreachable(ui.join.UNREACHABLE)
+
+    monkeypatch.setattr(ui.join, "join", unreachable)
+    start = app.build().start
+    assert start.advanced.selected_index is None
+    start.code.value = "K7Q2"
+    start.button.click()
+    assert start.advanced.selected_index == 0
+    assert "Notfall-Folie" in start.message.value and "Traceback" not in start.message.value
+
+
+def test_start_unknown_code_keeps_advanced_closed(monkeypatch):
+    def unknown(code, **_):
+        raise ui.ConfigError("Code unbekannt – bitte den Code noch einmal von der Folie abtippen.")
+
+    monkeypatch.setattr(ui.join, "join", unknown)
+    start = app.build().start
+    start.code.value = "ZZZZ"
+    start.button.click()
+    assert start.advanced.selected_index is None
+    assert "Code unbekannt" in start.message.value
+    assert ui.SESSION.group is None
+
+
+def test_advanced_opens_when_no_scoreboard_url(monkeypatch):
+    monkeypatch.setattr(app, "SCOREBOARD_URL", "")
+    assert app.build().start.advanced.selected_index == 0

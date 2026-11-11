@@ -4,10 +4,12 @@
  * Tabs im Sheet:
  *   runs     – eine Zeile pro LLM-Lauf, Kopfzeile = FIELDS (wird automatisch angelegt)
  *   config   – Schlüssel/Wert-Paare: token, session_id (aktive Session)
+ *   keys     – Gruppencodes: code | group | openrouter_key | active (privat, nur dieses Skript liest ihn)
  *   defects  – Ground Truth, per Upload aus dem Instructor-Notebook (für RQ1-Matrix und Auflösung)
  *
  * doPost  – nimmt Läufe ({token, record}) oder die Ground Truth ({token, defects}) an
- * doGet   – ohne Parameter: Dashboard; ?format=json[&session=…][&precomputed=1]: aggregierte Daten
+ * doGet   – ohne Parameter: Dashboard; ?format=json[&session=…][&precomputed=1]: aggregierte Daten;
+ *           ?action=join&code=…&token=…: Gruppe und Key zum Gruppencode
  */
 
 // Gleiche Reihenfolge wie RECORD_FIELDS in judge_lab/scoreboard.py (Test: tests/test_scoreboard_contract.py)
@@ -272,6 +274,21 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
   };
 }
 
+// --- Gruppencodes (reine Funktion, mit Node getestet) ----------------------------
+
+function normalizeCode(value) {
+  return String(value === null || value === undefined ? "" : value).replace(/\s+/g, "").toUpperCase();
+}
+
+/** Antwort auf ?action=join. Ohne gültiges Token gibt es keinen Key, auch nicht bei leerem Token im Sheet. */
+function joinLookup(keyRows, config, params) {
+  if (!config.token || params.token !== config.token) return { status: "error", message: "Ungültiges Token" };
+  const code = normalizeCode(params.code);
+  const row = code && keyRows.find((r) => normalizeCode(r.code) === code && bool(r.active));
+  if (!row) return { status: "error", message: "Code unbekannt" };
+  return { status: "ok", group: String(row.group), key: String(row.openrouter_key) };
+}
+
 // --- Apps Script: Sheet-Zugriff -------------------------------------------------
 
 function sheet_(name) {
@@ -338,6 +355,9 @@ function getData(sessionId, includePrecomputed) {
 function doGet(e) {
   const params = (e && e.parameter) || {};
   const session = params.session || config_().session_id || "";
+  if (params.action === "join") {
+    return json_(joinLookup(readTable_("keys"), config_(), params));
+  }
   if (params.format === "json") {
     return json_(getData(session, params.precomputed === "1"));
   }
@@ -350,4 +370,4 @@ function doGet(e) {
 }
 
 // Für die Tests mit Node; in Apps Script ist `module` nicht definiert.
-if (typeof module !== "undefined") module.exports = { aggregate, cellValue, FIELDS, POINTS };
+if (typeof module !== "undefined") module.exports = { aggregate, cellValue, joinLookup, FIELDS, POINTS };

@@ -46,6 +46,24 @@ Wichtige Befehle:
 
 Kostenschätzung (Konzept 11): 2–3 Mio. Tokens, je nach Modell ca. 1–8 €.
 
+### Gruppencodes anlegen
+
+Die Studierenden tippen nur einen kurzen Code von der Folie ab; Gruppe und Key liefert die Scoreboard-Web-App (`?action=join`).
+
+1. Im Sheet einen Tab `keys` mit der Kopfzeile `code | group | openrouter_key | active` anlegen.
+2. Pro Gruppe eine Zeile, z. B. `K7Q2 | Gruppe 2 | sk-or-… | TRUE`. Die Gruppe muss genau so heißen wie in `config.py` (`Gruppe 1` … `Gruppe 4`).
+3. **Codes:** 4 Zeichen aus `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (ohne die verwechselbaren 0/O und 1/I). Erzeugen z. B. mit
+   `python -c "import secrets; a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; print([''.join(secrets.choice(a) for _ in range(4)) for _ in range(4)])"`.
+   Groß/klein und Leerzeichen spielen beim Eintippen keine Rolle.
+4. **Pro Session neue Codes** (Generalprobe ≠ Live-Session). Codes auf der Setup-Folie = Codes im Sheet.
+5. Das Sheet bleibt **privat**; nur die Web-App (läuft als „Ich“) liest den Tab. Der Endpunkt verlangt das `token` aus dem Tab `config`.
+   Da dieses Token im Repo steht, schützt es nur vor Zufallstreffern: Keys deshalb immer mit Kreditlimit anlegen.
+6. **Nach der Session:** alle Keys bei OpenRouter widerrufen und den Tab `keys` leeren (oder `active = FALSE`).
+
+Test im Browser: `…/exec?action=join&code=<Code>&token=<Token>` liefert `{"status":"ok","group":…,"key":…}`, ein falscher Code `{"status":"error","message":"Code unbekannt"}`.
+
+Ist der Code-Server nicht erreichbar, klappt im Reiter „Start“ der Bereich **Erweitert** auf: Dort tragen die Gruppen Gruppe und Key von der Notfall-Folie ein (wie bisher).
+
 ## 4. Lokales Modell (Gruppe 4)
 
 - Colab: Laufzeit → Laufzeittyp ändern → **T4-GPU**. Die Zelle „🖥️ Nur Gruppe 4“ installiert Ollama, startet den Server, lädt das Modell und schickt eine Testanfrage. Mehrfaches Ausführen schadet nicht.
