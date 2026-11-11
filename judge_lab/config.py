@@ -57,8 +57,8 @@ POINTS = {"tp": 2, "fp_bug": -1}
 
 # Nach dem Deployment der Apps-Script-Web-App eintragen (scoreboard/DEPLOY.md).
 # Leere URL: Läufe landen nur in der lokalen CSV-Sicherung.
-SCOREBOARD_URL = ""
-SCOREBOARD_TOKEN = ""
+SCOREBOARD_URL = "https://script.google.com/macros/s/AKfycbwXy2n88oda5nLpq1J2SVzG5J3D5SX0wPi82gtKlSvz2jdw5p1dIYabfz0ef8Ks9d19Zw/exec"
+SCOREBOARD_TOKEN = "3551d940879490ee5fc93673928866b2"
 DEFAULT_SESSION_ID = "rehearsal"
 FINDINGS_JSON_MAX = 5000  # Zeichen
 SCOREBOARD_TIMEOUT = 10  # Sekunden

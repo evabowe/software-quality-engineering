@@ -35,9 +35,9 @@ Wichtig: Nach jeder Änderung am Skript **Bereitstellungen verwalten → Bearbei
 POST mit einem Beispiel-Lauf (fehlende Felder bleiben leer):
 
 ```bash
-URL="https://script.google.com/macros/s/…/exec"
-curl -L -X POST "$URL" -H "Content-Type: application/json" -d '{
-  "token": "DEIN-TOKEN",
+URL="https://script.google.com/macros/s/AKfycbwXy2n88oda5nLpq1J2SVzG5J3D5SX0wPi82gtKlSvz2jdw5p1dIYabfz0ef8Ks9d19Zw/exec"
+curl -L "$URL" -H "Content-Type: application/json" -d '{
+  "token": "3551d940879490ee5fc93673928866b2",
   "record": {"timestamp": "2026-11-08T10:00:00+00:00", "session_id": "deploy-test", "group": "Gruppe 1",
              "phase": "a1", "model_key": "mock", "model_id": "mock", "attitude": "objective",
              "snippet_id": "qb_quicksort", "complexity_level": "L2", "with_tests": false,
