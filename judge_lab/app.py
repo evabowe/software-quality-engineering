@@ -34,6 +34,11 @@ TIPS_STEP2 = """
 </ol>
 """
 
+INTRO_STEP3 = """
+<p>Jetzt bewertet euer Judge die übrigen fünf Beispiele (bekannte Algorithmen aus dem QuixBugs-Benchmark),
+wieder in allen Haltungen. Das läuft <b>im Hintergrund</b> – startet es und hört vorne zu.</p>
+"""
+
 RULES_CHALLENGE = """
 <h4>Regeln</h4>
 <p>Ziel sind möglichst viele echte Defekte bei möglichst wenigen Fehlalarmen
@@ -137,8 +142,8 @@ def _panels(start: StartPanel) -> list[Callable[[], widgets.Widget]]:
     return [
         lambda: start.widget,
         lambda: _register(ui.human_panel()),
-        lambda: widgets.VBox([ui.prognosis_panel(), _block(TIPS_STEP2)]),
-        ui.assignment1_panel,
+        lambda: widgets.VBox([ui.llm_judge_panel().widget, _block(TIPS_STEP2)]),
+        lambda: widgets.VBox([_block(INTRO_STEP3), ui.all_examples_panel().widget]),
         lambda: widgets.VBox([_block(RULES_CHALLENGE), ui.assignment2_panel()]),
         lambda: _block(CLOSING),
     ]

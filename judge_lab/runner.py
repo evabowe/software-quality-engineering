@@ -15,14 +15,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from judge_lab import NOTEBOOK_VERSION
-from judge_lab.config import ATTITUDES, CONCURRENCY, FINDINGS_JSON_MAX, MODELS
+from judge_lab.config import ATTITUDES, CONCURRENCY, FINDINGS_JSON_MAX, HUMAN_SNIPPET, LOCAL_ATTITUDES, MODELS
 from judge_lab.llm import LLMResult
 from judge_lab.matching import match_findings
 from judge_lab.parsing import REPAIR_MESSAGE, JudgeVerdict, ParseError, parse_verdict
 from judge_lab.prompts import build_prompt, load_attitude, prompt_hash
 from judge_lab.scoreboard import RECORD_FIELDS
 from judge_lab.scoring import weighted_score
-from judge_lab.snippets import Snippet
+from judge_lab.snippets import Snippet, load_snippets
 
 Progress = Callable[[int, int], None]
 
@@ -166,11 +166,33 @@ def _run_parallel(jobs: list[Callable[[], dict]], workers: int, on_progress: Pro
     return results  # type: ignore[return-value]
 
 
+# Stufen der Session: judge = Schritt 2 (bank_account), rest = Schritt 3 (QuixBugs), bonus = mit Tests;
+# a1 = alles auf einmal (Instructor-Notebook, Vorab-Läufe). judge + rest + bonus = a1.
+STAGES = ("judge", "rest", "bonus", "a1")
+
+
+def stage_variants(model_key: str, stage: str) -> tuple[tuple[str, ...], tuple[str, ...], tuple[bool, ...]]:
+    """(Snippet-IDs, Haltungen, Testvarianten) einer Stufe. Das lokale Modell bekommt weniger Haltungen
+    und keine Läufe mit Tests (Laufzeit auf der T4)."""
+    if stage not in STAGES:
+        raise ValueError(f"Unbekannte Stufe {stage!r}")
+    local = MODELS[model_key]["provider"] == "ollama"
+    attitudes = LOCAL_ATTITUDES if local else ATTITUDES
+    with_tests = () if local else (True,)
+    all_ids = tuple(s.id for s in load_snippets())
+    rest = tuple(i for i in all_ids if i != HUMAN_SNIPPET)
+    return {
+        "judge": ((HUMAN_SNIPPET,), attitudes, (False,)),
+        "rest": (rest, attitudes, (False,)),
+        "bonus": (all_ids, attitudes, with_tests),
+        "a1": (all_ids, attitudes, with_tests + (False,)),
+    }[stage]
+
+
 def assignment1_variants(model_key: str) -> tuple[tuple[str, ...], tuple[bool, ...]]:
-    """Haltungen und Testvarianten für Auftrag 1; das lokale Modell bekommt eine reduzierte Matrix."""
-    if MODELS[model_key]["provider"] == "ollama":
-        return ("strict", "lenient"), (False,)
-    return ATTITUDES, (True, False)
+    """Haltungen und Testvarianten für Auftrag 1 (alle Stufen zusammen)."""
+    _, attitudes, variants = stage_variants(model_key, "a1")
+    return attitudes, variants
 
 
 def run_matrix(

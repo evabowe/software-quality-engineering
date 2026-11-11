@@ -38,7 +38,7 @@ from judge_lab.config import (
 from judge_lab.llm import ConfigError, MockClient, make_client
 from judge_lab.matching import MatchResult
 from judge_lab.prompts import lint_challenge_prompt, prompt_hash
-from judge_lab.runner import RunContext, assignment1_variants, prognosis_record, run_challenge, run_matrix
+from judge_lab.runner import RunContext, prognosis_record, run_challenge, run_matrix, stage_variants
 from judge_lab.scoreboard import Scoreboard
 from judge_lab.scoring import challenge_points
 from judge_lab.snippets import get_snippet, load_snippets
@@ -66,6 +66,8 @@ class Session:
     local_only: int = 0  # Läufe, die das Scoreboard nicht erreicht haben (nur in der CSV)
     a1_records: list = field(default_factory=list)
     human_record: dict | None = None
+    stage_records: dict = field(default_factory=dict)  # Stufe (judge/rest/bonus) → Läufe
+    running: set = field(default_factory=set)  # Stufen, die gerade im Hintergrund laufen
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def require_setup(self) -> None:
@@ -157,11 +159,45 @@ def submit_human(lines_text: str, score: int, justification: str, *, correction:
 
 
 def run_assignment1(on_progress=None) -> list[dict]:
-    attitudes, variants = assignment1_variants(SESSION.model_key)
-    records = run_matrix(SESSION.context(), SESSION.client(), load_snippets(), attitudes, variants,
-                         on_progress=on_progress)
-    SESSION.a1_records = records
+    """Alle Stufen auf einmal (wie das frühere Auftrag 1)."""
+    return run_stage("a1", on_progress=on_progress)
+
+
+def run_stage(stage: str, on_progress=None) -> list[dict]:
+    """Eine Stufe (judge = Schritt 2, rest = Schritt 3, bonus = mit Tests) mit dem Judge der Gruppe."""
+    ids, attitudes, variants = stage_variants(SESSION.model_key, stage)
+    snippets = [s for s in load_snippets() if s.id in ids]
+    records = run_matrix(SESSION.context(), SESSION.client(), snippets, attitudes, variants, on_progress=on_progress)
+    with SESSION._lock:
+        SESSION.stage_records[stage] = records
+        SESSION.a1_records = [r for stage_runs in SESSION.stage_records.values() for r in stage_runs]
     return records
+
+
+def start_stage_in_background(stage: str, on_progress=None, on_done=None) -> threading.Thread:
+    """Startet eine Stufe in einem Thread, damit die Gruppe weiterarbeiten oder zuhören kann.
+    ``on_done(records, None)`` bzw. ``on_done(None, Fehler)`` wird am Ende aufgerufen."""
+    SESSION.require_setup()
+    with SESSION._lock:
+        if stage in SESSION.running:
+            raise ConfigError("Diese Beispiele laufen schon – einfach abwarten, der Balken zeigt den Fortschritt.")
+        SESSION.running.add(stage)
+
+    def work():
+        records, error = None, None
+        try:
+            records = run_stage(stage, on_progress=on_progress)
+        except Exception as exc:  # noqa: BLE001 – wird als Meldung angezeigt
+            error = exc
+        finally:
+            with SESSION._lock:
+                SESSION.running.discard(stage)
+        if on_done:
+            on_done(records, error)
+
+    thread = threading.Thread(target=work, name=f"judge-lab-{stage}", daemon=True)
+    thread.start()
+    return thread
 
 
 def probe_challenge(prompt_text: str, snippet_id: str) -> tuple[list[dict] | None, str]:
@@ -283,6 +319,45 @@ def challenge_summary(records: list[dict]) -> pd.DataFrame:
         challenge_points(_result(r) for r in reference.values()) if reference else None,
     ]
     return table
+
+
+REASON_CHARS = 200
+ROLE_LABELS = {"strict": "strict", "objective": "objective", "lenient": "lenient", "none": "keine Rolle"}
+
+
+def _reason(record: dict) -> str:
+    """Erste 200 Zeichen der Befunde des LLM (Wortlaut, ohne Abgleich mit der Ground Truth)."""
+    try:
+        findings = json.loads(record["findings_json"]) if record["findings_json"] else []
+    except json.JSONDecodeError:
+        findings = []
+    text = "; ".join(f.get("description", "") for f in findings if f.get("description"))
+    return text if len(text) <= REASON_CHARS else text[:REASON_CHARS] + "…"
+
+
+def comparison_table(human_record: dict | None, judge_records: list[dict]) -> pd.DataFrame:
+    """Schritt 2: euer Gutachten neben dem LLM in den drei Haltungen (gleicher Code)."""
+    rows = {}
+    if human_record:
+        label = f"Ihr ({ROLE_LABELS.get(human_record['attitude'], human_record['attitude'])})"
+        rows[label] = {"Score": f"{human_record['weighted_score']}",
+                       "gefunden": f"{human_record['tp']}/{human_record['n_defects']}",
+                       "Fehlalarme": human_record["fp"], "Begründung": human.justification_of(human_record)}
+    else:
+        rows["Ihr"] = {"Score": "–", "gefunden": "–", "Fehlalarme": "–", "Begründung": "noch kein Gutachten"}
+    order = {a: i for i, a in enumerate(("strict", "objective", "lenient"))}
+    for r in sorted(judge_records, key=lambda r: order.get(r["attitude"], 9)):
+        if _failed(r):
+            rows[f"LLM {r['attitude']}"] = {"Score": "Fehler", "gefunden": "–", "Fehlalarme": "–", "Begründung": r["error"]}
+            continue
+        score = r["weighted_score"]
+        rows[f"LLM {r['attitude']}"] = {
+            "Score": f"{score:.1f}" if score is not None else "–",
+            "gefunden": f"{r['tp']}/{r['n_defects']}" + ("" if r["parse_ok"] else " (unlesbar)"),
+            "Fehlalarme": r["fp"],
+            "Begründung": _reason(r),
+        }
+    return pd.DataFrame.from_dict(rows, orient="index", columns=["Score", "gefunden", "Fehlalarme", "Begründung"])
 
 
 def snippet_html(snippet_id: str) -> str:
@@ -503,24 +578,139 @@ def _guarded_html(target: widgets.HTML, action):
     return handler
 
 
+def best_judge_options() -> list[tuple[str, str]]:
+    return [(MODELS[g["model_key"]]["label"], g["model_key"]) for g in GROUPS.values()] + [("wir Menschen", "human")]
+
+
+def _warning(text: str) -> str:
+    return f"<div style='color:#b45309'><b>{html.escape(text)}</b></div>"
+
+
+def _failures_html(records: list[dict]) -> str:
+    lines = error_summary(records)
+    if not lines:
+        return ""
+    items = "".join(f"<li>{html.escape(line)}</li>" for line in lines)
+    return (f"<div style='color:#b45309'><b>⚠️ Einige Läufe sind fehlgeschlagen "
+            f"(zählen nicht als Ergebnis des Judges):</b><ul>{items}</ul></div>")
+
+
+def _local_only_html(before: int) -> str:
+    warning = local_only_warning(before)
+    return _warning(warning) if warning else ""
+
+
 def prognosis_panel() -> widgets.Widget:
-    labels = [(MODELS[g["model_key"]]["label"], g["model_key"]) for g in GROUPS.values()]
-    best = widgets.Dropdown(options=labels, description="Bester Judge:", style={"description_width": "initial"})
-    strict = widgets.Dropdown(options=STRICT_VS_LENIENT_OPTIONS, description="strict vs. lenient:",
-                              style={"description_width": "initial"}, layout=widgets.Layout(width="40em"))
-    button = widgets.Button(description="Absenden", button_style="primary")
-    out = widgets.Output()
+    wide = {"description_width": "initial"}
+    strict = widgets.Dropdown(options=STRICT_VS_LENIENT_OPTIONS, description="H1:", style=wide,
+                              layout=widgets.Layout(width="45em"))
+    best = widgets.Dropdown(options=best_judge_options(), description="H2:", style=wide)
+    button = widgets.Button(description="Prognose absenden", button_style="primary")
+    message = widgets.HTML()
 
     def send(*_):
-        out.clear_output()
         before = SESSION.local_only
         prognosis_record(SESSION.context(), best_model=best.value, strict_vs_lenient=strict.value)
-        with out:
-            print("✅ Prognose gespeichert.")
-            _show_local_only(before)
+        message.value = "<b>✅ Prognose gespeichert.</b>" + _local_only_html(before)
 
-    button.on_click(_guarded(out, send))
-    return widgets.VBox([best, strict, button, out])
+    button.on_click(_guarded_html(message, _debounced(send)))
+    return widgets.VBox([
+        widgets.HTML("<h4>Eure Prognose</h4><p><b>H1:</b> Findet <i>strict</i> mehr echte Fehler als "
+                     "<i>lenient</i> – oder vergibt es nur schlechtere Noten?</p>"),
+        strict,
+        widgets.HTML("<p><b>H2:</b> Welcher Judge findet die meisten Defekte?</p>"),
+        best, button, message,
+    ])
+
+
+@dataclass
+class StagePanel:
+    widget: widgets.Widget
+    run: widgets.Button
+    progress: widgets.IntProgress
+    result: widgets.HTML
+
+
+def _progress_bar() -> tuple[widgets.IntProgress, callable]:
+    progress = widgets.IntProgress(value=0, min=0, max=1, description="0/0")
+
+    def update(done, total):
+        progress.max, progress.value, progress.description = total, done, f"{done}/{total}"
+
+    return progress, update
+
+
+def llm_judge_panel() -> StagePanel:
+    """Schritt 2: derselbe Code, das LLM als Judge in drei Haltungen; Vergleich mit eurem Gutachten."""
+    run = widgets.Button(description="Unseren Judge bewerten lassen", button_style="primary",
+                         layout=widgets.Layout(width="auto"))
+    progress, update = _progress_bar()
+    result = widgets.HTML()
+
+    def start(*_):
+        run.disabled = True
+        before = SESSION.local_only
+        records = []
+        try:
+            records = run_stage("judge", on_progress=update)
+        finally:
+            # Bei Infrastrukturfehlern darf die Gruppe es noch einmal versuchen.
+            ok = records and not error_summary(records)
+            run.disabled = bool(ok)
+            run.description = "✅ erledigt" if ok else "Unseren Judge bewerten lassen"
+        table = comparison_table(SESSION.human_record, records)
+        result.value = (_local_only_html(before) + _failures_html(records)
+                        + "<h4>Mensch vs. LLM – gleicher Code (bank_account)</h4>" + table.to_html(escape=True))
+
+    run.on_click(_guarded_html(result, _debounced(start)))
+    return StagePanel(widgets.VBox([prognosis_panel(), widgets.HTML("<hr>"), run, progress, result]),
+                      run, progress, result)
+
+
+def _a1_result_html() -> str:
+    records = SESSION.a1_records
+    if not records:
+        return ""
+    findings = findings_table(records)
+    return (_failures_html(records) + "<h4>Score · gefundene Defekte (je Beispiel und Bedingung)</h4>"
+            + assignment1_table(records).to_html(escape=True)
+            + "<details><summary>Was die Judges gemeldet haben (Wortlaut)</summary>"
+            + findings.to_html(escape=True, index=False) + "</details>")
+
+
+def all_examples_panel() -> StagePanel:
+    """Schritt 3: die übrigen Beispiele im Hintergrund; Bonus mit Tests als Kontext (nur API-Modelle)."""
+    run = widgets.Button(description="Restliche Beispiele starten", button_style="primary",
+                         layout=widgets.Layout(width="auto"))
+    bonus = widgets.Button(description="Bonus: mit Tests als Kontext", layout=widgets.Layout(width="auto"))
+    progress, update = _progress_bar()
+    status = widgets.HTML()
+    result = widgets.HTML(_a1_result_html())
+
+    def launch(stage, button, label):
+        def on_done(records, error):
+            before = SESSION.local_only
+            if error is not None:
+                status.value = _warning(friendly_error(error))
+                button.disabled, button.description = False, label
+                return
+            ok = not error_summary(records)
+            button.disabled, button.description = ok, ("✅ erledigt" if ok else label)
+            status.value = _local_only_html(before)
+            result.value = _a1_result_html()
+
+        def start(*_):
+            button.disabled, button.description = True, "läuft im Hintergrund …"
+            status.value = "<i>Läuft im Hintergrund – ihr könnt den Reiter wechseln oder zuhören.</i>"
+            start_stage_in_background(stage, on_progress=update, on_done=on_done)
+
+        return _guarded_html(status, _debounced(start))
+
+    run.on_click(launch("rest", run, run.description))
+    bonus.on_click(launch("bonus", bonus, bonus.description))
+    has_bonus = any(stage_variants(SESSION.model_key, "bonus")[2]) if SESSION.model_key else True
+    buttons = [run, bonus] if has_bonus else [run]
+    return StagePanel(widgets.VBox([widgets.HBox(buttons), progress, status, result]), run, progress, result)
 
 
 def snippet_viewer() -> widgets.Widget:

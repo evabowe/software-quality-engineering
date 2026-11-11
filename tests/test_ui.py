@@ -180,3 +180,95 @@ def test_mock_runs_go_to_separate_session():
     assert ui.SESSION.context().session_id == f"{ui.DEFAULT_SESSION_ID}-mock"
     ui.configure("Gruppe 2", api_key="sk-test")
     assert ui.SESSION.context().session_id == ui.DEFAULT_SESSION_ID
+
+
+def test_run_stage_judge_only_bank_account():
+    records = ui.run_stage("judge")
+    assert len(records) == 3
+    assert {(r["snippet_id"], r["with_tests"], r["phase"]) for r in records} == {("bank_account", False, "a1")}
+    assert ui.SESSION.stage_records["judge"] == records
+
+
+def test_comparison_table_human_vs_llm():
+    ui.submit_human("26, 31", 4, "Einzahlen zieht Geld ab.")
+    table = ui.comparison_table(ui.SESSION.human_record, ui.run_stage("judge"))
+    assert list(table.index) == ["Ihr (strict)", "LLM strict", "LLM objective", "LLM lenient"]
+    assert list(table.columns) == ["Score", "gefunden", "Fehlalarme", "Begründung"]
+    assert table.loc["Ihr (strict)", "gefunden"] == "2/6"
+    assert table.loc["Ihr (strict)", "Begründung"] == "Einzahlen zieht Geld ab."
+    assert table.loc["LLM strict", "gefunden"] == "1/6"
+    assert len(table.loc["LLM lenient", "Begründung"]) <= 201
+
+
+def test_comparison_table_without_human():
+    table = ui.comparison_table(None, ui.run_stage("judge"))
+    assert table.loc["Ihr", "Begründung"] == "noch kein Gutachten"
+
+
+def test_comparison_table_has_no_ground_truth():
+    ui.submit_human("26", 4, "x")
+    text = ui.comparison_table(ui.SESSION.human_record, ui.run_stage("judge")).to_html()
+    for defect in SNIPPETS[-1].defects + tuple(d for s in SNIPPETS for d in s.defects):
+        assert defect.description not in text
+
+
+def test_background_stage_finishes_with_complete_records():
+    import threading
+
+    done, progress = threading.Event(), []
+    result = {}
+
+    def on_done(records, error):
+        result.update(records=records, error=error)
+        done.set()
+
+    thread = ui.start_stage_in_background("rest", on_progress=lambda d, t: progress.append((d, t)), on_done=on_done)
+    thread.join(timeout=30)
+    assert done.is_set() and not thread.is_alive()
+    assert result["error"] is None and len(result["records"]) == 15
+    assert all(r["snippet_id"] != "bank_account" for r in result["records"])
+    assert progress[-1] == (15, 15)
+    assert "rest" not in ui.SESSION.running
+
+
+def test_background_stage_cannot_start_twice(monkeypatch):
+    import threading
+
+    release = threading.Event()
+    monkeypatch.setattr(ui, "run_stage", lambda stage, on_progress=None: release.wait(5) and [])
+    thread = ui.start_stage_in_background("rest")
+    with pytest.raises(ConfigError, match="laufen schon"):
+        ui.start_stage_in_background("rest")
+    release.set()
+    thread.join(timeout=5)
+
+
+def test_background_stage_reports_errors(monkeypatch):
+    def broken(stage, on_progress=None):
+        raise ConfigError("Das lokale Modell läuft noch nicht.")
+
+    monkeypatch.setattr(ui, "run_stage", broken)
+    result = {}
+    ui.start_stage_in_background("rest", on_done=lambda r, e: result.update(r=r, e=e)).join(timeout=5)
+    assert result["r"] is None and "lokale Modell" in str(result["e"])
+    assert "rest" not in ui.SESSION.running
+
+
+def test_a1_records_collect_all_stages():
+    ui.run_stage("judge")
+    ui.run_stage("rest")
+    assert len(ui.SESSION.a1_records) == 18
+    table = ui.assignment1_table(ui.SESSION.a1_records)
+    assert list(table.index) == [s.title for s in SNIPPETS]
+
+
+def test_llm_judge_panel_shows_comparison():
+    ui.submit_human("26", 4, "Einzahlen zieht Geld ab.")
+    panel = ui.llm_judge_panel()
+    panel.run.click()
+    assert "Ihr (strict)" in panel.result.value and "LLM lenient" in panel.result.value
+    assert panel.run.disabled
+
+
+def test_prognosis_offers_humans():
+    assert ("wir Menschen", "human") in ui.best_judge_options()

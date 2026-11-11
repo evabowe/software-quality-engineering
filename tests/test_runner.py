@@ -205,3 +205,39 @@ def test_each_submission_has_its_own_id():
     second = run_challenge(context, clients, "B", snippets=SNIPPETS, submit=True, submission_no=1)
     assert len({r["submission_id"] for r in first}) == 1
     assert first[0]["submission_id"] and first[0]["submission_id"] != second[0]["submission_id"]
+
+
+def _combinations(model_key, stage):
+    from judge_lab.runner import stage_variants
+
+    ids, attitudes, variants = stage_variants(model_key, stage)
+    return {(s, a, t) for s in ids for a in attitudes for t in variants}
+
+
+def test_stage_job_counts_api():
+    assert [len(_combinations("gemini", s)) for s in ("judge", "rest", "bonus")] == [3, 15, 18]
+
+
+def test_stage_job_counts_local():
+    assert [len(_combinations("local", s)) for s in ("judge", "rest", "bonus")] == [2, 10, 0]
+
+
+def test_stage_judge_is_bank_account_without_tests():
+    assert {(s, t) for s, _, t in _combinations("deepseek", "judge")} == {("bank_account", False)}
+
+
+def test_stages_do_not_repeat_each_other():
+    for model_key in ("gemini", "local", "local_fallback", "mock"):
+        judge, rest, bonus = (_combinations(model_key, s) for s in ("judge", "rest", "bonus"))
+        assert not (judge & rest) and not (judge & bonus) and not (rest & bonus)
+        # zusammen genau die bisherige Matrix aus Auftrag 1
+        assert judge | rest | bonus == _combinations(model_key, "a1")
+
+
+def test_unknown_stage_rejected():
+    import pytest
+
+    from judge_lab.runner import stage_variants
+
+    with pytest.raises(ValueError):
+        stage_variants("gemini", "everything")
