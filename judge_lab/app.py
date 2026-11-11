@@ -9,12 +9,15 @@ baut nur die Widgets neu.
 from __future__ import annotations
 
 import html
+import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import ipywidgets as widgets
 from IPython.display import display
 
+from judge_lab import phase as phases
 from judge_lab import ui
 from judge_lab.config import SCOREBOARD_URL
 from judge_lab.join import ServerUnreachable
@@ -66,7 +69,8 @@ CLOSING = """
 
 @dataclass
 class AppState:
-    phase: int = LAST_PHASE  # höchster freigegebener Reiter; ohne Freigabe-Server ist alles offen
+    phase: int = 0  # höchster freigegebener Reiter; nur „Start“ ist von Anfang an offen
+    offline: bool = False  # Freigabe-Server antwortet nicht → alles offen
 
 
 STATE = AppState()
@@ -75,10 +79,12 @@ STATE = AppState()
 def status_text() -> str:
     session = ui.SESSION
     if not session.group:
-        return "Noch nicht verbunden – bitte im Reiter „Start“ den Gruppencode eingeben."
+        text = "Noch nicht verbunden – bitte im Reiter „Start“ den Gruppencode eingeben."
+        return f"{text} · {phases.OFFLINE_MESSAGE}" if STATE.offline else text
     board = "✅" if session.scoreboard and session.scoreboard.url and not session.local_only else "⚠️"
     step = f"Schritt {STATE.phase} von {LAST_PHASE}" if STATE.phase else "Start"
-    return f"{session.group} · Judge: {judge_name(session.model_key)} · Scoreboard {board} · {step}"
+    text = f"{session.group} · Judge: {judge_name(session.model_key)} · Scoreboard {board} · {step}"
+    return f"{text} · {phases.OFFLINE_MESSAGE}" if STATE.offline else text
 
 
 def _block(text: str) -> widgets.HTML:
@@ -204,6 +210,43 @@ def current() -> AppView | None:
     return _CURRENT
 
 
+def poll_once(gate: phases.PhaseGate) -> None:
+    """Eine Abfrage der Freigabe; aktualisiert die zuletzt angezeigte Oberfläche."""
+    unlocked = gate.tick()
+    STATE.offline = gate.offline
+    view = current()
+    if view is None:
+        if unlocked is not None:
+            STATE.phase = max(STATE.phase, unlocked)
+        return
+    if unlocked is not None:
+        view.set_phase(unlocked)
+    else:
+        view.refresh_status()
+
+
+_POLLER: threading.Thread | None = None
+
+
+def start_polling(gate: phases.PhaseGate, interval_s: float = phases.POLL_S) -> None:
+    """Fragt die Freigabe im Hintergrund ab; läuft je Kernel nur einmal (auch nach erneutem Ausführen)."""
+    global _POLLER
+    if _POLLER is not None and _POLLER.is_alive():
+        return
+
+    def loop():
+        while True:
+            try:
+                poll_once(gate)
+            except Exception:  # noqa: BLE001 – die Abfrage darf nie die Oberfläche stören
+                pass
+            time.sleep(interval_s)
+
+    _POLLER = threading.Thread(target=loop, name="judge-lab-phase", daemon=True)
+    _POLLER.start()
+
+
 def show() -> None:
     view = build()
     display(widgets.VBox([view.status, view.tab]))
+    start_polling(phases.PhaseGate.for_url(SCOREBOARD_URL))

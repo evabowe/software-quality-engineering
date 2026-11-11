@@ -3,13 +3,15 @@
  *
  * Tabs im Sheet:
  *   runs     – eine Zeile pro LLM-Lauf, Kopfzeile = FIELDS (wird automatisch angelegt)
- *   config   – Schlüssel/Wert-Paare: token, session_id (aktive Session)
+ *   config   – Schlüssel/Wert-Paare: token, session_id (aktive Session), phase (0–5), admin_token
  *   keys     – Gruppencodes: code | group | openrouter_key | active (privat, nur dieses Skript liest ihn)
  *   defects  – Ground Truth, per Upload aus dem Instructor-Notebook (für RQ1-Matrix und Auflösung)
  *
  * doPost  – nimmt Läufe ({token, record}) oder die Ground Truth ({token, defects}) an
  * doGet   – ohne Parameter: Dashboard; ?format=json[&session=…][&precomputed=1]: aggregierte Daten;
- *           ?action=join&code=…&token=…: Gruppe und Key zum Gruppencode
+ *           ?action=join&code=…&token=…: Gruppe und Key zum Gruppencode;
+ *           ?format=phase: freigegebene Phase; ?admin=<admin_token>: Dashboard mit Phasen-Schaltern
+ * setPhase – vom Dashboard (google.script.run), nur mit admin_token
  */
 
 // Gleiche Reihenfolge wie RECORD_FIELDS in judge_lab/scoreboard.py (Test: tests/test_scoreboard_contract.py)
@@ -291,6 +293,23 @@ function joinLookup(keyRows, config, params) {
   return { status: "ok", group: String(row.group), key: String(row.openrouter_key) };
 }
 
+// --- Phasenfreigabe (reine Funktionen, mit Node getestet) -----------------------
+
+const MAX_PHASE = 5;
+
+function readPhase(config) {
+  const n = num(config.phase);
+  return n !== null && n >= 0 && n <= MAX_PHASE ? Math.floor(n) : 0;
+}
+
+/** Prüft Admin-Token und Wert; ein leeres admin_token im Sheet sperrt das Setzen ganz. */
+function phaseUpdate(value, adminToken, config) {
+  if (!config.admin_token || adminToken !== config.admin_token) return { status: "error", message: "Ungültiges Admin-Token" };
+  const n = num(value);
+  if (n === null || n < 0 || n > MAX_PHASE || Math.floor(n) !== n) return { status: "error", message: "Phase muss 0–5 sein" };
+  return { status: "ok", phase: n };
+}
+
 // --- Apps Script: Sheet-Zugriff -------------------------------------------------
 
 function sheet_(name) {
@@ -351,7 +370,22 @@ function doPost(e) {
 
 /** Wird vom Dashboard über google.script.run aufgerufen. */
 function getData(sessionId, includePrecomputed) {
-  return aggregate(readTable_("runs"), readTable_("defects"), sessionId || config_().session_id, !!includePrecomputed);
+  const config = config_();
+  const data = aggregate(readTable_("runs"), readTable_("defects"), sessionId || config.session_id, !!includePrecomputed);
+  data.phase = readPhase(config);
+  return data;
+}
+
+/** Wird vom Dashboard im Admin-Modus aufgerufen. Schreibt die Zeile „phase“ im Tab config. */
+function setPhase(value, adminToken) {
+  const result = phaseUpdate(value, adminToken, config_());
+  if (result.status !== "ok") return result;
+  const sheet = sheet_("config");
+  const keys = sheet.getDataRange().getValues().map((row) => String(row[0]).trim());
+  const index = keys.indexOf("phase");
+  if (index >= 0) sheet.getRange(index + 1, 2).setValue(result.phase);
+  else sheet.appendRow(["phase", result.phase]);
+  return result;
 }
 
 function doGet(e) {
@@ -360,11 +394,15 @@ function doGet(e) {
   if (params.action === "join") {
     return json_(joinLookup(readTable_("keys"), config_(), params));
   }
+  if (params.format === "phase") {
+    return json_({ phase: readPhase(config_()) });
+  }
   if (params.format === "json") {
     return json_(getData(session, params.precomputed === "1"));
   }
   const template = HtmlService.createTemplateFromFile("dashboard");
   template.session = session;
+  template.admin = params.admin || "";
   return template
     .evaluate()
     .setTitle("Scoreboard – LLM-as-a-Judge")
@@ -372,4 +410,4 @@ function doGet(e) {
 }
 
 // Für die Tests mit Node; in Apps Script ist `module` nicht definiert.
-if (typeof module !== "undefined") module.exports = { aggregate, cellValue, joinLookup, FIELDS, POINTS };
+if (typeof module !== "undefined") module.exports = { aggregate, cellValue, joinLookup, phaseUpdate, readPhase, FIELDS, POINTS };

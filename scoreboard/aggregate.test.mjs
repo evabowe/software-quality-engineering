@@ -196,3 +196,23 @@ test("menschliche Gutachten zählen nicht als LLM-Läufe", () => {
   assert.deepEqual(data.parseFailures, {});
   assert.deepEqual(data.infraErrors, {});
 });
+
+test("Phase setzen nur mit dem Admin-Token", () => {
+  const { phaseUpdate } = require("./Code.gs");
+  const config = { admin_token: "geheim" };
+  assert.deepEqual(phaseUpdate(3, "geheim", config), { status: "ok", phase: 3 });
+  assert.equal(phaseUpdate(3, "falsch", config).status, "error");
+  assert.equal(phaseUpdate(3, "", config).status, "error");
+  assert.equal(phaseUpdate(3, "", { admin_token: "" }).status, "error");
+  assert.equal(phaseUpdate(3, undefined, {}).status, "error");
+  assert.equal(phaseUpdate(6, "geheim", config).status, "error");
+  assert.equal(phaseUpdate(-1, "geheim", config).status, "error");
+  assert.equal(phaseUpdate("2", "geheim", config).phase, 2);
+});
+
+test("Phase lesen: fehlt oder unlesbar → 0", () => {
+  const { readPhase } = require("./Code.gs");
+  assert.equal(readPhase({ phase: "4" }), 4);
+  assert.equal(readPhase({}), 0);
+  assert.equal(readPhase({ phase: "x" }), 0);
+});

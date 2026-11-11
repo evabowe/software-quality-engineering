@@ -5,12 +5,14 @@ Das Scoreboard ist eine Apps-Script-Web-App an einem Google Sheet. Die Notebooks
 ## 1. Sheet anlegen
 
 1. Neues Google Sheet anlegen, z. B. „Scoreboard LLM-as-a-Judge 2026-11-19“.
-2. Tab `config` anlegen und zwei Zeilen eintragen (Spalte A = Schlüssel, Spalte B = Wert):
+2. Tab `config` anlegen und vier Zeilen eintragen (Spalte A = Schlüssel, Spalte B = Wert):
 
    | A | B |
    |---|---|
    | `token` | eine zufällige Zeichenkette, z. B. aus `python -c "import secrets; print(secrets.token_urlsafe(16))"` |
    | `session_id` | aktive Session, z. B. `rehearsal-1` oder `2026-11-19-live` |
+   | `phase` | `0` – freigegebene Reiter im Notebook (0 = nur „Start“ … 5 = alles); setzt das Dashboard im Admin-Modus |
+   | `admin_token` | eine **zweite** zufällige Zeichenkette, die **nicht** ins Repo kommt. Admin-Dashboard: `…/exec?admin=<admin_token>` |
 
    Die Tabs `runs` und `defects` legt das Skript selbst an.
 3. Tab `keys` für die Gruppencodes anlegen (Kopfzeile `code | group | openrouter_key | active`), siehe [GUIDE_INSTRUCTOR.md](../docs/GUIDE_INSTRUCTOR.md#gruppencodes-anlegen). Das Sheet bleibt privat.
@@ -56,6 +58,8 @@ curl -L "$URL?format=json&session=deploy-test"
 ```
 
 Das Dashboard öffnet sich unter der URL ohne Parameter im Browser; eine andere Session zeigt `…/exec?session=rehearsal-1`.
+
+Phase abfragen: `curl -L "$URL?format=phase"` → `{"phase":0}`. Die Notebooks fragen das alle 10 s ab. Antwortet der Endpunkt dreimal hintereinander nicht, öffnen sie alle Reiter („Freigabe offline – folgt einfach der Ansage vorne“).
 
 ## 5. In das Paket eintragen
 
