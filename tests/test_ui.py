@@ -272,3 +272,52 @@ def test_llm_judge_panel_shows_comparison():
 
 def test_prognosis_offers_humans():
     assert ("wir Menschen", "human") in ui.best_judge_options()
+
+
+def _join_as_group4(monkeypatch, gpu):
+    monkeypatch.setattr(ui.join, "join", lambda code, **_: ("Gruppe 4", "sk-test"))
+    monkeypatch.setattr(ui.ollama_colab, "ensure_gpu", lambda: gpu)
+
+
+def test_group4_without_gpu_switches_to_fallback(monkeypatch):
+    _join_as_group4(monkeypatch, gpu=False)
+    started = []
+    monkeypatch.setattr(ui.ollama_colab, "start_local_model", lambda **kw: started.append(kw))
+    message = ui.join_group("G4G4")
+    assert ui.SESSION.model_key == "local_fallback" and started == []
+    assert "Keine GPU verfügbar – ihr nutzt ein kleines Modell über OpenRouter" in message
+
+
+def test_group4_with_gpu_starts_local_model_in_background(monkeypatch):
+    _join_as_group4(monkeypatch, gpu=True)
+
+    def fake_start(on_step):
+        on_step("3/4 Modell laden …")
+        return "✅ Lokales Modell bereit: qwen"
+
+    monkeypatch.setattr(ui.ollama_colab, "start_local_model", fake_start)
+    statuses = []
+    message = ui.join_group("G4G4", on_local_status=statuses.append)
+    ui.SESSION.local_model_thread.join(timeout=5)
+    assert ui.SESSION.model_key == "local" and "lädt im Hintergrund" in message
+    assert statuses[-2:] == ["3/4 Modell laden …", "✅ Lokales Modell bereit: qwen"]
+
+
+def test_local_model_errors_are_reported(monkeypatch):
+    _join_as_group4(monkeypatch, gpu=True)
+
+    def broken(on_step):
+        raise RuntimeError("Ollama-Server antwortet nicht")
+
+    monkeypatch.setattr(ui.ollama_colab, "start_local_model", broken)
+    statuses = []
+    ui.join_group("G4G4", on_local_status=statuses.append)
+    ui.SESSION.local_model_thread.join(timeout=5)
+    assert "antwortet nicht" in statuses[-1] and "Erweitert" in statuses[-1]
+
+
+def test_api_groups_do_not_start_local_model(monkeypatch):
+    monkeypatch.setattr(ui.join, "join", lambda code, **_: ("Gruppe 1", "sk-test"))
+    monkeypatch.setattr(ui.ollama_colab, "ensure_gpu", lambda: pytest.fail("GPU-Prüfung nur für Gruppe 4"))
+    ui.join_group("K7Q2")
+    assert ui.SESSION.local_model_thread is None

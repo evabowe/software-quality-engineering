@@ -43,7 +43,7 @@ def install(run=subprocess.run, which=shutil.which) -> bool:
     """Installiert Ollama mit dem offiziellen Installer; False, wenn es schon da ist."""
     if which("ollama"):
         return False
-    run(["bash", "-c", INSTALL_COMMAND], check=True)
+    run(["bash", "-c", INSTALL_COMMAND], check=True, capture_output=True)
     return True
 
 
@@ -70,8 +70,8 @@ def serve(popen=subprocess.Popen, is_up=is_up, log_path: Path | None = None, wai
 
 
 def pull(model: str, run=subprocess.run) -> None:
-    """Lädt das Modell; die Fortschrittsanzeige von ``ollama pull`` erscheint direkt in der Zelle."""
-    run(["ollama", "pull", model], check=True)
+    """Lädt das Modell. Die Ausgabe wird abgefangen: Der Aufruf läuft im Hintergrund-Thread."""
+    run(["ollama", "pull", model], check=True, capture_output=True)
 
 
 def warmup(model: str) -> LLMResult:
@@ -80,16 +80,21 @@ def warmup(model: str) -> LLMResult:
     return client.complete([{"role": "user", "content": 'Reply with the JSON object {"ok": true}.'}])
 
 
-def start_local_model(model: str = MODELS["local"]["id"], run=subprocess.run) -> str:
-    """Alle Schritte nacheinander; gibt eine Statusmeldung für das Notebook zurück."""
+def start_local_model(model: str = MODELS["local"]["id"], run=subprocess.run, on_step=None) -> str:
+    """Alle Schritte nacheinander; ``on_step`` erhält Zwischenstände, die Rückgabe ist die Schlussmeldung."""
+    step = on_step or (lambda text: None)
     if not ensure_gpu(run=run):
         return (
-            "⚠️ Keine GPU gefunden. Entweder Laufzeit → Laufzeittyp ändern → T4-GPU und diese Zelle erneut "
-            "ausführen, oder im Setup „Gruppe 4 – Fallback ohne GPU“ wählen (kleines Modell über OpenRouter)."
+            "⚠️ Keine GPU gefunden. Entweder Laufzeit → Laufzeittyp ändern → T4-GPU und das Notebook neu starten, "
+            "oder unter „Erweitert“ „Gruppe 4 ohne GPU“ wählen (Fallback: kleines Modell über OpenRouter)."
         )
+    step("1/4 Ollama installieren …")
     install(run=run)
+    step("2/4 Server starten …")
     serve()
+    step("3/4 Modell laden (dauert einige Minuten) …")
     pull(model, run=run)
+    step("4/4 Testanfrage …")
     result = warmup(model)
     if result.error:
         return f"⚠️ Modell geladen, aber die Testanfrage ist fehlgeschlagen: {result.error}"

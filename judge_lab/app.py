@@ -98,6 +98,7 @@ class StartPanel:
     button: widgets.Button
     message: widgets.HTML
     advanced: widgets.Accordion
+    local: widgets.HTML  # Gruppe 4: Fortschritt des lokalen Modells
 
 
 def _message(text: str, color: str = "#1f2933") -> str:
@@ -110,6 +111,7 @@ def start_panel(on_change: Callable[[], None]) -> StartPanel:
     code = widgets.Text(placeholder="z. B. K7Q2", description="Gruppencode:", style={"description_width": "initial"})
     button = widgets.Button(description="Los geht's", button_style="primary")
     message = widgets.HTML()
+    local = widgets.HTML()
     advanced = widgets.Accordion(children=[ui.setup_panel(on_saved=on_change)])
     advanced.set_title(0, "Erweitert (nur wenn der Code nicht klappt)")
     advanced.selected_index = None if SCOREBOARD_URL else 0
@@ -118,7 +120,10 @@ def start_panel(on_change: Callable[[], None]) -> StartPanel:
     def go(*_):
         message.value = _message("Verbinde …", "#616e7c")
         try:
-            message.value = _message(ui.join_group(code.value))
+            def show_local(text):
+                local.value = _message(f"Lokales Modell: {text}", "#616e7c")
+
+            message.value = _message(ui.join_group(code.value, on_local_status=show_local))
         except ServerUnreachable as exc:
             advanced.selected_index = 0
             message.value = _message(f"⚠️ {exc}", "#b45309")
@@ -130,8 +135,8 @@ def start_panel(on_change: Callable[[], None]) -> StartPanel:
         on_change()
 
     button.on_click(ui._debounced(go))
-    widget = widgets.VBox([intro, widgets.HBox([code, button]), message, debug, advanced])
-    return StartPanel(widget, code, button, message, advanced)
+    widget = widgets.VBox([intro, widgets.HBox([code, button]), message, local, debug, advanced])
+    return StartPanel(widget, code, button, message, advanced, local)
 
 
 _REFRESHERS: list[Callable[[], None]] = []

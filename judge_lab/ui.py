@@ -68,6 +68,7 @@ class Session:
     human_record: dict | None = None
     stage_records: dict = field(default_factory=dict)  # Stufe (judge/rest/bonus) → Läufe
     running: set = field(default_factory=set)  # Stufen, die gerade im Hintergrund laufen
+    local_model_thread: threading.Thread | None = None  # Gruppe 4: Ollama wird im Hintergrund gestartet
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def require_setup(self) -> None:
@@ -91,8 +92,8 @@ class Session:
             return MockClient()
         if MODELS[self.model_key]["provider"] == "ollama" and not ollama_colab.is_up():
             raise ConfigError(
-                "Das lokale Modell läuft noch nicht. Gruppe 4: bitte zuerst die Zelle „🖥️ Nur Gruppe 4“ "
-                "ausführen – oder im Setup „ohne GPU“ ankreuzen."
+                "Das lokale Modell läuft noch nicht – den Fortschritt seht ihr im Reiter „Start“. Kurz warten; "
+                "klappt es gar nicht, unter „Erweitert“ „Gruppe 4 ohne GPU“ ankreuzen und speichern."
             )
         return make_client(self.model_key, self.api_key)
 
@@ -134,11 +135,41 @@ def judge_name(model_key: str) -> str:
     return MODELS[model_key]["label"].split(" (")[0]
 
 
-def join_group(code: str) -> str:
-    """Gruppencode → Gruppe und Key vom Code-Server, dann wie ``configure``."""
+NO_GPU = "Keine GPU verfügbar – ihr nutzt ein kleines Modell über OpenRouter."
+
+
+def join_group(code: str, on_local_status=None) -> str:
+    """Gruppencode → Gruppe und Key vom Code-Server, dann wie ``configure``.
+
+    Gruppe 4 (lokales Modell): Ohne GPU wird sofort auf das kleine OpenRouter-Modell umgeschaltet,
+    mit GPU startet Ollama im Hintergrund; ``on_local_status`` erhält die Zwischenstände."""
     group, api_key = join.join(code, url=SCOREBOARD_URL, token=SCOREBOARD_TOKEN, session_id=DEFAULT_SESSION_ID)
     configure(group, api_key)
-    return f"✅ Ihr seid {group} – euer Judge heißt {judge_name(SESSION.model_key)}"
+    message = f"✅ Ihr seid {group} – euer Judge heißt {judge_name(SESSION.model_key)}"
+    if MODELS[SESSION.model_key]["provider"] != "ollama":
+        return message
+    if not ollama_colab.ensure_gpu():
+        configure(group, api_key, use_fallback=True)
+        return f"✅ Ihr seid {group} – euer Judge heißt {judge_name(SESSION.model_key)}. {NO_GPU}"
+    start_local_model_in_background(on_local_status)
+    return f"{message}. Das Modell lädt im Hintergrund – einfach weitermachen."
+
+
+def start_local_model_in_background(on_status=None) -> threading.Thread:
+    """Startet Ollama einmal je Kernel; ein zweiter Aufruf gibt den laufenden Thread zurück."""
+    status = on_status or (lambda text: None)
+    if SESSION.local_model_thread is not None and SESSION.local_model_thread.is_alive():
+        return SESSION.local_model_thread
+
+    def work():
+        try:
+            status(ollama_colab.start_local_model(on_step=status))
+        except Exception as exc:  # noqa: BLE001 – als Meldung anzeigen
+            status(f"⚠️ Lokales Modell: {exc}. Ausweg: unter „Erweitert“ „Gruppe 4 ohne GPU“ ankreuzen.")
+
+    SESSION.local_model_thread = threading.Thread(target=work, name="judge-lab-ollama", daemon=True)
+    SESSION.local_model_thread.start()
+    return SESSION.local_model_thread
 
 
 def submit_human(lines_text: str, score: int, justification: str, *, correction: bool = False

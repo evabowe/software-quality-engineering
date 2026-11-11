@@ -80,3 +80,23 @@ def test_serve_sets_context_length(tmp_path):
     _, kwargs = popen.calls[0]
     assert int(kwargs["env"]["OLLAMA_CONTEXT_LENGTH"]) >= 8192
     assert "PATH" in kwargs["env"]
+
+
+def test_pull_and_install_capture_output():
+    # Im Hintergrund-Thread darf die Ausgabe nicht in irgendeiner Zelle landen.
+    run = Recorder(subprocess.CompletedProcess([], 0))
+    ollama_colab.pull("m", run=run)
+    ollama_colab.install(run=run, which=lambda name: None)
+    assert all(kwargs.get("capture_output") is True for _, kwargs in run.calls)
+
+
+def test_start_reports_steps(monkeypatch):
+    monkeypatch.setattr(ollama_colab, "install", lambda run: True)
+    monkeypatch.setattr(ollama_colab, "serve", lambda: True)
+    monkeypatch.setattr(ollama_colab, "pull", lambda model, run: None)
+    monkeypatch.setattr(ollama_colab, "warmup", lambda model: ollama_colab.LLMResult("{}", 3.0, 1, 1))
+    steps = []
+    message = ollama_colab.start_local_model("m", run=Recorder(subprocess.CompletedProcess([], 0)),
+                                             on_step=steps.append)
+    assert message.startswith("✅")
+    assert [s[:3] for s in steps] == ["1/4", "2/4", "3/4", "4/4"]

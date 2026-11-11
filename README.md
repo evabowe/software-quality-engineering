@@ -2,7 +2,9 @@
 
 Hands-on „LLM-as-a-Judge für Softwarequalität“ (Session am 19.11.2026): eine Mini-Replikation von Chou (2026), *AI-as-a-Judge for software quality assessment*, **mit Ground Truth**. LLM-Judges bewerten sechs Code-Beispiele mit bekannten Defekten in drei Haltungen (strict / objective / lenient); gemessen werden Score, Recall und Fehlalarme. Danach schreiben die Gruppen in einer Prompt-Challenge eigene Judge-Prompts.
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/evabowe/software-quality-engineering/blob/main/notebooks/hands_on.ipynb)
+| Gruppen 1–3 | Gruppe 4 (lokales Modell, mit GPU) |
+|---|---|
+| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/evabowe/software-quality-engineering/blob/main/notebooks/hands_on.ipynb) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/evabowe/software-quality-engineering/blob/main/notebooks/hands_on_gpu.ipynb) |
 
 ## Dokumentation
 

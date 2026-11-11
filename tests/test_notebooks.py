@@ -54,3 +54,16 @@ def test_no_api_keys_in_repository():
         if API_KEY.search(text):
             leaks.append(name)
     assert leaks == []
+
+
+def test_gpu_notebook_is_hands_on_with_gpu_runtime():
+    from tools.build_notebooks import build_gpu_notebook
+
+    plain = json.loads((NOTEBOOKS / "hands_on.ipynb").read_text(encoding="utf-8"))
+    gpu = json.loads((NOTEBOOKS / "hands_on_gpu.ipynb").read_text(encoding="utf-8"))
+    assert gpu["cells"] == plain["cells"]
+    assert (gpu["metadata"]["accelerator"], gpu["metadata"]["colab"]["gpuType"]) == ("GPU", "T4")
+    strip = lambda nb: {k: v for k, v in nb["metadata"].items() if k not in ("accelerator", "colab")}  # noqa: E731
+    assert strip(gpu) == strip(plain)
+    # Die Datei ist aktuell (nach jeder Änderung an hands_on.ipynb: python tools/build_notebooks.py)
+    assert gpu == build_gpu_notebook(plain)
