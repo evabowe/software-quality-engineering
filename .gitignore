@@ -13,3 +13,6 @@ scoreboard_backup.csv
 
 # Superpowers-Arbeitsverzeichnis
 .superpowers/
+
+# Marker der Colab-Installation (notebooks/hands_on.ipynb)
+.installed
