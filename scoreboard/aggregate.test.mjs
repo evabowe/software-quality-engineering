@@ -216,3 +216,76 @@ test("Phase lesen: fehlt oder unlesbar → 0", () => {
   assert.equal(readPhase({}), 0);
   assert.equal(readPhase({ phase: "x" }), 0);
 });
+
+const human = (group, attitude, score, tp, overrides) =>
+  run(Object.assign({ phase: "human", group, model_key: "human", attitude, snippet_id: "bank_account",
+                      weighted_score: score, tp, fp: 1, n_defects: 6, recall: tp / 6 }, overrides));
+
+test("Gutachten: je Gruppe das letzte, mit Rolle", () => {
+  const rows = [human("Gruppe 2", "objective", 6, 1, { timestamp: "1" }), human("Gruppe 2", "objective", 5, 2, { timestamp: "2" }),
+                human("Gruppe 1", "strict", 3, 3)];
+  const data = aggregate(rows, DEFECTS, "live", false);
+  assert.deepEqual(data.human.map((h) => [h.group, h.role, h.score, h.tp, h.n_defects]),
+                   [["Gruppe 1", "strict", 3, 3, 6], ["Gruppe 2", "objective", 5, 2, 6]]);
+});
+
+test("Mensch vs. LLM: nur bank_account ohne Tests", () => {
+  const rows = [
+    human("Gruppe 1", "strict", 3, 3),
+    run({ model_key: "gemini", attitude: "strict", snippet_id: "bank_account", with_tests: false, weighted_score: 4, recall: 0.5 }),
+    run({ model_key: "gemini", attitude: "strict", snippet_id: "bank_account", with_tests: true, weighted_score: 9, recall: 1 }),
+    run({ model_key: "gemini", attitude: "strict", snippet_id: "qb_bitcount", with_tests: false, weighted_score: 9, recall: 1 }),
+  ];
+  const { humanVsLlm } = aggregate(rows, DEFECTS, "live", false);
+  assert.deepEqual(humanVsLlm.human.map((h) => [h.group, h.role, h.score, h.recall]), [["Gruppe 1", "strict", 3, 0.5]]);
+  assert.deepEqual(humanVsLlm.llm, [{ model: "gemini", attitude: "strict", score: 4, recall: 0.5, runs: 1 }]);
+});
+
+test("Paper vs. wir: Werte aus Chou (2026), Tabelle 6, neben unseren Mittelwerten", () => {
+  const rows = [run({ model_key: "gemini", attitude: "strict", weighted_score: 3 })];
+  const { paper, scoreHeatmap } = aggregate(rows, DEFECTS, "live", false);
+  assert.deepEqual(paper.scores.gemini, { strict: 4.66, objective: 7.28, lenient: 7.99 });
+  assert.deepEqual(paper.scores.doubao, { strict: 4.8, objective: 6.84, lenient: 8.06 });
+  assert.deepEqual(Object.keys(paper.scores), ["gemini", "deepseek", "kimi", "doubao"]);
+  assert.match(paper.source, /Chou \(2026\)/);
+  assert.equal(scoreHeatmap.gemini.strict, 3);
+});
+
+test("Verbunden: Gruppen mit Lauf oder Join in dieser Session", () => {
+  const rows = [run({ group: "Gruppe 1", model_key: "gemini" }), run({ group: "Gruppe 2", session_id: "andere" })];
+  const joins = [{ session_id: "live", group: "Gruppe 3" }, { session_id: "andere", group: "Gruppe 4" }];
+  const { connected } = aggregate(rows, DEFECTS, "live", false, joins);
+  assert.deepEqual(connected, { "Gruppe 1": true, "Gruppe 2": false, "Gruppe 3": true, "Gruppe 4": false });
+  // ohne joins-Argument weiterhin aufrufbar (rückwärtskompatibel)
+  assert.equal(aggregate(rows, DEFECTS, "live", false).connected["Gruppe 1"], true);
+});
+
+test("Prognose vs. Ergebnis", () => {
+  const { STRICT_VS_LENIENT } = require("./Code.gs");
+  const rows = [
+    human("Gruppe 1", "strict", 3, 3),  // Mensch: Recall 0,5 auf bank_account
+    run({ model_key: "gemini", attitude: "strict", snippet_id: "bank_account", recall: 0.25 }),
+    run({ model_key: "gemini", attitude: "lenient", snippet_id: "bank_account", recall: 0.25 }),
+    run({ model_key: "kimi", attitude: "strict", snippet_id: "bank_account", recall: 0.4 }),
+    run({ model_key: "kimi", attitude: "lenient", snippet_id: "qb_bitcount", recall: 1 }),
+    run({ phase: "prognosis", group: "Gruppe 1", prediction_best_model: "human", prediction_strict_vs_lenient: STRICT_VS_LENIENT[0] }),
+    run({ phase: "prognosis", group: "Gruppe 2", prediction_best_model: "kimi", prediction_strict_vs_lenient: STRICT_VS_LENIENT[2] }),
+  ];
+  const { predictionCheck } = aggregate(rows, DEFECTS, "live", false);
+  assert.deepEqual(predictionCheck.bestBankAccount, ["human"]);
+  assert.deepEqual(predictionCheck.bestOverall, ["kimi"]);
+  // strict: (0,25 + 0,4) / 2 = 0,325 · lenient: (0,25 + 1) / 2 = 0,625 → lenient findet mehr
+  assert.equal(predictionCheck.recallStrict, 0.325);
+  assert.equal(predictionCheck.recallLenient, 0.625);
+  assert.equal(predictionCheck.strictVsLenient, STRICT_VS_LENIENT[2]);
+  assert.deepEqual(predictionCheck.predictions.map((p) => [p.group, p.bestHit, p.strictVsLenientHit]),
+                   [["Gruppe 1", true, false], ["Gruppe 2", false, true]]);
+});
+
+test("Prognose vs. Ergebnis: kleiner Unterschied gilt als „etwa gleich“", () => {
+  const { STRICT_VS_LENIENT } = require("./Code.gs");
+  const rows = [run({ model_key: "kimi", attitude: "strict", recall: 0.5 }),
+                run({ model_key: "kimi", attitude: "lenient", recall: 0.55 })];
+  assert.equal(aggregate(rows, DEFECTS, "live", false).predictionCheck.strictVsLenient, STRICT_VS_LENIENT[1]);
+  assert.equal(aggregate([], DEFECTS, "live", false).predictionCheck.strictVsLenient, null);
+});

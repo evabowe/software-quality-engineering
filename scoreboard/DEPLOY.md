@@ -14,7 +14,7 @@ Das Scoreboard ist eine Apps-Script-Web-App an einem Google Sheet. Die Notebooks
    | `phase` | `0` – freigegebene Reiter im Notebook (0 = nur „Start“ … 5 = alles); setzt das Dashboard im Admin-Modus |
    | `admin_token` | eine **zweite** zufällige Zeichenkette, die **nicht** ins Repo kommt. Admin-Dashboard: `…/exec?admin=<admin_token>` |
 
-   Die Tabs `runs` und `defects` legt das Skript selbst an.
+   Die Tabs `runs`, `defects` und `joins` legt das Skript selbst an.
 3. Tab `keys` für die Gruppencodes anlegen (Kopfzeile `code | group | openrouter_key | active`), siehe [GUIDE_INSTRUCTOR.md](../docs/GUIDE_INSTRUCTOR.md#gruppencodes-anlegen). Das Sheet bleibt privat.
 
 ## 2. Skript einfügen
@@ -60,6 +60,10 @@ curl -L "$URL?format=json&session=deploy-test"
 Das Dashboard öffnet sich unter der URL ohne Parameter im Browser; eine andere Session zeigt `…/exec?session=rehearsal-1`.
 
 Phase abfragen: `curl -L "$URL?format=phase"` → `{"phase":0}`. Die Notebooks fragen das alle 10 s ab. Antwortet der Endpunkt dreimal hintereinander nicht, öffnen sie alle Reiter („Freigabe offline – folgt einfach der Ansage vorne“).
+
+### Layout prüfen ohne Deployment
+
+`node tools/dashboard_preview.mjs <Ordner>` schreibt fünf statische Vorschauseiten (eine je Ansicht) mit erfundenen Daten; Aufruf für Screenshots in 1280 × 720 steht im Kopf des Skripts. Aktuelle Screenshots: [docs/plans/dashboard-preview/](../docs/plans/dashboard-preview/).
 
 ## 5. In das Paket eintragen
 

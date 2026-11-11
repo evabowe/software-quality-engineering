@@ -37,3 +37,16 @@ def test_aggregation_node_tests():
         ["node", "--test", str(SCOREBOARD_DIR / "aggregate.test.mjs")], capture_output=True, text=True, timeout=60
     )
     assert result.returncode == 0, result.stdout[-2000:]
+
+
+def test_strict_vs_lenient_options_match():
+    # Das Dashboard vergleicht Prognosen wörtlich mit diesen Texten.
+    from judge_lab.ui import STRICT_VS_LENIENT_OPTIONS
+
+    assert tuple(_js_constant("STRICT_VS_LENIENT")) == STRICT_VS_LENIENT_OPTIONS
+
+
+def test_groups_match():
+    from judge_lab.config import GROUPS
+
+    assert tuple(_js_constant("GROUP_NAMES")) == tuple(GROUPS)

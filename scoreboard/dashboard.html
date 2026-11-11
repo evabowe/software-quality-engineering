@@ -4,33 +4,59 @@
   <meta charset="utf-8">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <style>
-    :root { --ink: #1f2933; --muted: #616e7c; --line: #d9e2ec; --bg: #ffffff; --soft: #f5f7fa; --accent: #2f5fd0; }
+    /* Beamertauglich: helles Theme, Schrift ≥ 18 px, kein horizontales Scrollen bei 1280 × 720.
+       Farben: „wir“ = Blau, „Paper“ = Orange (geprüft mit dem Palette-Validator, auch für Farbsehschwäche);
+       Heatmaps = eine Farbe von hell nach dunkel. */
+    :root { --ink: #1f2933; --muted: #52606d; --line: #d9e2ec; --bg: #ffffff; --soft: #f5f7fa; --accent: #2f5fd0;
+            --ours: #2a78d6; --paper: #eb6834; }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 24px 32px 64px; font: 20px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-           color: var(--ink); background: var(--bg); }
-    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px 32px; margin-bottom: 8px; }
-    h1 { font-size: 34px; margin: 0; }
-    h2 { font-size: 26px; margin: 40px 0 4px; }
-    .hint { color: var(--muted); font-size: 17px; margin: 0 0 12px; }
-    .status { color: var(--muted); font-size: 17px; }
-    nav { position: sticky; top: 0; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line);
-          display: flex; flex-wrap: wrap; gap: 8px; z-index: 1; }
-    nav a { color: var(--accent); text-decoration: none; font-size: 17px; padding: 4px 10px; border-radius: 6px;
-            background: var(--soft); }
-    label { font-size: 17px; }
-    button { font: inherit; font-size: 17px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent);
+    body { margin: 0; padding: 16px 28px 64px; font: 20px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+           color: var(--ink); background: var(--bg); overflow-wrap: break-word; }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 28px; }
+    h1 { font-size: 30px; margin: 0; }
+    h2 { font-size: 26px; margin: 28px 0 4px; }
+    h3 { font-size: 22px; margin: 20px 0 4px; }
+    .hint, .status, label, .source { color: var(--muted); font-size: 18px; }
+    .hint { margin: 0 0 10px; }
+    nav { position: sticky; top: 0; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--line);
+          display: flex; flex-wrap: wrap; gap: 10px; align-items: center; z-index: 2; }
+    nav button { font-size: 22px; padding: 8px 18px; }
+    nav button.active { background: var(--accent); color: #fff; }
+    button { font: inherit; font-size: 18px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent);
              background: #fff; border-radius: 6px; cursor: pointer; }
-    table { border-collapse: collapse; margin: 8px 0; }
-    th, td { border: 1px solid var(--line); padding: 8px 14px; text-align: center; }
+    #connected { font-size: 20px; margin: 8px 0 0; }
+    #admin { display: none; margin: 8px 0 0; padding: 8px 12px; background: #fff7e6; border: 1px solid #f0b429;
+             border-radius: 6px; font-size: 18px; }
+    #admin button { margin-left: 4px; padding: 2px 12px; }
+    table { border-collapse: collapse; margin: 8px 0; max-width: 100%; }
+    th, td { border: 1px solid var(--line); padding: 6px 12px; text-align: center; }
     th { background: var(--soft); font-weight: 600; }
     td.left, th.left { text-align: left; }
+    .nowrap { white-space: nowrap; }
     .grid { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
     .empty { color: var(--muted); font-style: italic; }
-    .prompt { white-space: pre-wrap; text-align: left; font: 15px/1.4 ui-monospace, Menlo, monospace;
-              max-width: 70ch; max-height: 18em; overflow: auto; }
+    .prompt { white-space: pre-wrap; text-align: left; font: 18px/1.4 ui-monospace, Menlo, monospace; max-width: 60ch; }
     .chart { max-width: 900px; }
+    details { margin: 24px 0; }
+    summary { font-size: 22px; font-weight: 600; cursor: pointer; color: var(--accent); }
+    section[data-view] { display: none; }
+    section[data-view].shown { display: block; }
+    /* Balken: dünne Marken, 4 px abgerundetes Ende an der Grundlinie verankert, Werte direkt beschriftet */
+    .bars { display: grid; grid-template-columns: max-content minmax(200px, 1fr) max-content; gap: 6px 14px;
+            align-items: center; max-width: 1100px; }
+    .track { background: var(--soft); height: 26px; border-radius: 0 4px 4px 0; }
+    .bar { height: 26px; border-radius: 0 4px 4px 0; background: var(--ours); }
+    .bar.paper { background: var(--paper); }
+    .bar.thin, .track.thin { height: 14px; }
+    .value { font-variant-numeric: tabular-nums; }
+    .legend { display: flex; gap: 24px; font-size: 18px; margin: 4px 0 8px; }
+    .swatch { display: inline-block; width: 16px; height: 16px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
+    .models { display: flex; flex-wrap: wrap; gap: 12px 40px; }
+    .model { flex: 0 0 380px; }  /* gleiche Breite: Balken sind über alle Modelle vergleichbar */
+    .cards { display: flex; flex-wrap: wrap; gap: 16px; }
+    .card { flex: 1 1 520px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; }
+    .card .prompt { max-width: none; margin: 8px 0 0; }
     #resolution { display: none; }
-    section { scroll-margin-top: 70px; }
   </style>
 </head>
 <body>
@@ -40,71 +66,101 @@
     <label><input type="checkbox" id="precomputed"> Vorab-Daten einblenden</label>
   </header>
   <nav>
-    <a href="#rq2">RQ2 Haltung</a><a href="#rq1">RQ1 Übereinstimmung</a><a href="#rq3">RQ3 Komplexität</a>
-    <a href="#extra">Tests &amp; Contamination</a><a href="#prognosis">Prognosen</a>
-    <a href="#leaderboard">Leaderboard</a><a href="#gallery">Prompt-Galerie</a><a href="#resolution-box">Auflösung</a>
+    <button data-show="1">① Gutachten</button><button data-show="2">② LLM-Judge</button>
+    <button data-show="3">③ Paper vs. wir</button><button data-show="4">④ Challenge</button>
+    <button data-show="5">Auflösung</button>
+    <span class="hint" style="margin:0">Tasten 1–5</span>
   </nav>
+  <div id="connected"></div>
+  <div id="admin">Freigabe im Notebook: Phase <strong id="phaseNow">–</strong> ·
+    setzen: <span id="phaseButtons"></span> <span id="adminMessage"></span></div>
 
-  <section id="rq2">
-    <h2>RQ2 · Verschiebt die Haltung die Note?</h2>
-    <p class="hint">Ø gewichteter Score (0–10) je Modell und Haltung, Auftrag 1</p>
+  <section data-view="1">
+    <h2>① Mensch: gleicher Code, andere Rolle</h2>
+    <p class="hint">Score (1–10), den jede Gruppe <code>bank_account</code> gegeben hat – jede mit einer verdeckten Rollenkarte</p>
+    <div id="humanBars"></div>
+    <p><button id="revealRoles">Rollen aufdecken</button></p>
+  </section>
+
+  <section data-view="2">
+    <h2>② Mensch vs. LLM – gleicher Code</h2>
+    <p class="hint"><code>bank_account</code> ohne Tests · Recall = Anteil der 6 Defekte, die gefunden wurden</p>
+    <div id="humanVsLlm"></div>
+    <h3>Prognosen</h3>
+    <div id="predictions"></div>
+    <h2>Verschiebt die Haltung die Note?</h2>
+    <p class="hint">Ø gewichteter Score (0–10) je Modell und Haltung, alle Beispiele</p>
     <div id="scoreHeatmap"></div>
     <h2>… und auch die Fehlerfindung?</h2>
-    <p class="hint">Links Ø Recall (Anteil gefundener Defekte), rechts Ø False Positives pro Lauf</p>
+    <p class="hint">Links Ø Recall, rechts Ø Fehlalarme pro Lauf (dunkler = mehr)</p>
     <div class="grid"><div id="recallHeatmap"></div><div id="fpHeatmap"></div></div>
   </section>
 
-  <section id="rq1">
-    <h2>RQ1 · Wie einig sind sich die Judges?</h2>
-    <p class="hint">Anteil der Läufe, in denen ein Modell den Defekt gefunden hat</p>
-    <div id="defectByModel"></div>
-    <p class="hint">Spearman-ρ der Scores zwischen den Modellen (gleiche Snippets, Haltungen, Testvarianten)</p>
-    <div id="spearman"></div>
+  <section data-view="3">
+    <h2>③ Paper vs. wir: Ø Score je Haltung</h2>
+    <div class="legend"><span><span class="swatch" style="background:var(--paper)"></span>Paper</span>
+      <span><span class="swatch" style="background:var(--ours)"></span>wir (alle Beispiele)</span></div>
+    <div id="paperChart" class="models"></div>
+    <p class="source" id="paperSource"></p>
+    <h2>Und der Recall?</h2>
+    <p class="hint">Das Paper misst nur Noten. Wir wissen, wo die Defekte liegen: Ø Anteil gefundener Defekte</p>
+    <div id="recallHeatmap3"></div>
+    <details>
+      <summary>Mehr: Übereinstimmung, Komplexität, Tests, Contamination, Formattreue</summary>
+      <h3>RQ1 · Wie einig sind sich die Judges?</h3>
+      <p class="hint">Anteil der Läufe, in denen ein Modell den Defekt gefunden hat</p>
+      <div id="defectByModel"></div>
+      <p class="hint">Spearman-ρ der Scores zwischen den Modellen (gleiche Beispiele, Haltungen, Testvarianten)</p>
+      <div id="spearman"></div>
+      <h3>RQ3 · Recall über die Komplexitätsstufe</h3>
+      <p class="hint">QuixBugs-Beispiele L1–L5; bank_account hat keine Stufe</p>
+      <div class="chart"><canvas id="levelChart" height="110"></canvas></div>
+      <h3>Hilft der Testcode als Kontext?</h3>
+      <div id="testsDelta"></div>
+      <h3>Öffentlicher Benchmark vs. unbekannter Code</h3>
+      <p class="hint">QuixBugs ist seit 2017 öffentlich (vermutlich in den Trainingsdaten), bank_account nicht</p>
+      <div id="publicVsPrivate"></div>
+      <h3>Formattreue</h3>
+      <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren; Läufe mit Infrastrukturfehlern zählen nirgends in die Wertung</p>
+      <div id="parseFailures"></div>
+    </details>
   </section>
 
-  <section id="rq3">
-    <h2>RQ3 · Recall über die Komplexitätsstufe</h2>
-    <p class="hint">QuixBugs-Snippets L1–L5; bank_account hat keine Stufe</p>
-    <div class="chart"><canvas id="levelChart" height="110"></canvas></div>
-  </section>
-
-  <section id="extra">
-    <h2>Hilft der Testcode als Kontext?</h2>
-    <div id="testsDelta"></div>
-    <h2>Öffentlicher Benchmark vs. unbekannter Code</h2>
-    <p class="hint">QuixBugs ist seit 2017 öffentlich (vermutlich in den Trainingsdaten), bank_account nicht</p>
-    <div id="publicVsPrivate"></div>
-    <h2>Formattreue</h2>
-    <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren; Läufe mit Infrastrukturfehlern zählen nirgends in die Wertung</p>
-    <div id="parseFailures"></div>
-  </section>
-
-  <section id="prognosis">
-    <h2>Prognosen</h2>
-    <div id="predictions"></div>
-  </section>
-
-  <section id="leaderboard">
-    <h2>Leaderboard Prompt-Challenge</h2>
-    <p class="hint">Beste Einreichung je Gruppe · Punkte = 2 × Treffer − 1 × Fehlalarm über alle Snippets</p>
+  <section data-view="4">
+    <h2>④ Leaderboard Prompt-Challenge</h2>
+    <p class="hint">Beste Einreichung je Gruppe · Punkte = 2 × Treffer − 1 × Fehlalarm über alle Beispiele</p>
     <div id="leaderboardTable"></div>
+    <h2>Prompt-Galerie: die beste Einreichung jeder Gruppe</h2>
+    <p class="hint">Grundlage für die Abstimmung über die beste Erklärung</p>
+    <div id="bestPrompts" class="cards"></div>
+    <details>
+      <summary>Alle Einreichungen</summary>
+      <div id="galleryTable"></div>
+    </details>
   </section>
 
-  <section id="gallery">
-    <h2>Prompt-Galerie</h2>
-    <div id="galleryTable"></div>
-  </section>
-
-  <section id="resolution-box">
-    <h2>Auflösung</h2>
+  <section data-view="5">
+    <h2>Prognose vs. Ergebnis</h2>
+    <div id="predictionResult"></div>
+    <div id="predictionCheck"></div>
+    <h2>Auflösung: die Defekte</h2>
     <button id="reveal">Ground Truth anzeigen</button>
     <div id="resolution"></div>
   </section>
 
   <script>
     const SESSION = <?= session ?>;
+    const ADMIN = <?= admin ?>;
     const REFRESH_MS = 10000;
+    // Dashboard-Ansicht → Freigabe im Notebook. ② gibt auch Reiter 3 frei (Schritt 3 läuft in derselben Phase).
+    const VIEW_PHASE = { 1: 1, 2: 3, 3: 3, 4: 4, 5: 5 };
+    const NAMES = { gemini: "Gemini", deepseek: "DeepSeek", kimi: "Kimi", doubao: "Doubao", local: "Qwen lokal",
+                    local_fallback: "Qwen klein", reference: "Referenz", mock: "Mock", human: "wir Menschen" };
+    const ROLE_NAMES = { strict: "strict", objective: "objective", lenient: "lenient", none: "keine Rolle" };
     let chart = null;
+    let data = null;
+    let view = window.INITIAL_VIEW || 1;
+    let rolesRevealed = false;
 
     function esc(value) {
       return String(value === null || value === undefined ? "" : value)
@@ -117,12 +173,15 @@
       return Number(value).toLocaleString("de-DE", { maximumFractionDigits: digits === undefined ? 2 : digits });
     }
 
-    // Farbskala von Rot (niedrig) über Gelb zu Grün (hoch); umgekehrt für „weniger ist besser“.
-    function color(value, max, invert) {
+    function name(key) { return NAMES[key] || key; }
+    function role(r) { return rolesRevealed ? (ROLE_NAMES[r] || r) : "Rolle ?"; }
+
+    // Eine Farbe (Blau) von hell (wenig) nach dunkler (viel); Text bleibt dunkel und lesbar.
+    function color(value, max) {
       if (value === null || value === undefined) return "#ffffff";
-      let t = Math.max(0, Math.min(1, value / max));
-      if (invert) t = 1 - t;
-      return "hsl(" + Math.round(t * 120) + ", 70%, 85%)";
+      const t = Math.max(0, Math.min(1, value / max));
+      const from = [242, 247, 253], to = [109, 167, 236];
+      return "rgb(" + from.map((c, i) => Math.round(c + (to[i] - c) * t)).join(",") + ")";
     }
 
     function table(headers, rows) {
@@ -131,38 +190,124 @@
       return "<table>" + head + rows.join("") + "</table>";
     }
 
-    function heatmap(data, models, attitudes, max, invert, digits) {
+    function heatmap(values, models, attitudes, max, digits) {
       return table([""].concat(attitudes), models.map((m) =>
-        "<tr><th class='left'>" + esc(m) + "</th>" + attitudes.map((a) => {
-          const v = data[m][a];
-          return "<td style='background:" + color(v, max, invert) + "'>" + fmt(v, digits) + "</td>";
+        "<tr><th class='left'>" + esc(name(m)) + "</th>" + attitudes.map((a) => {
+          const v = values[m][a];
+          return "<td style='background:" + color(v, max) + "' title='" + esc(name(m) + " · " + a + ": " + fmt(v, digits)) +
+            "'>" + fmt(v, digits) + "</td>";
         }).join("") + "</tr>"));
     }
 
-    function render(d) {
-      document.getElementById("status").textContent =
-        d.runs + " Läufe · aktualisiert " + new Date().toLocaleTimeString("de-DE");
+    function bar(value, max, cls, tip) {
+      const width = value === null || value === undefined ? 0 : Math.max(0, Math.min(1, value / max)) * 100;
+      return "<div class='track " + (cls || "") + "' title='" + esc(tip) + "'><div class='bar " + (cls || "") +
+        "' style='width:" + width + "%'></div></div>";
+    }
+
+    // --- Ansichten ------------------------------------------------------------------
+
+    function renderHuman(d) {
+      document.getElementById("humanBars").innerHTML = d.human.length ? "<div class='bars'>" + d.human.map((h) =>
+        "<div><strong>" + esc(h.group) + "</strong> · " + esc(role(h.role)) + "</div>" +
+        bar(h.score, 10, "", h.group + ": Score " + fmt(h.score, 1)) +
+        "<div class='value'><strong>" + fmt(h.score, 1) + "</strong> · " + fmt(h.tp, 0) + "/" + fmt(h.n_defects, 0) +
+        " gefunden</div>").join("") + "</div>" : '<p class="empty">Noch keine Gutachten.</p>';
+
+      // Kompakt für den Beamer: Zeilen = Mensch und Modelle, Spalten = Rolle bzw. Haltung, Zelle = Score und Recall.
+      const columns = d.attitudes.concat(["none"]);
+      const cell = (score, recall, who) => "<strong>" + fmt(score, 1) + "</strong><br><span class='hint'>" +
+        (who ? esc(who) + " · " : "") + "Recall " + fmt(recall) + "</span>";
+      let humanRow;
+      if (!d.humanVsLlm.human.length) {
+        humanRow = "<td colspan='" + columns.length + "' class='empty'>noch keine Gutachten</td>";
+      } else if (!rolesRevealed) {
+        humanRow = "<td colspan='" + columns.length + "' class='empty'>Rollen noch verdeckt – in ① aufdecken</td>";
+      } else {
+        humanRow = columns.map((c) => "<td>" + d.humanVsLlm.human.filter((h) => h.role === c)
+          .map((h) => cell(h.score, h.recall, h.group)).join("<br>") + "</td>").join("");
+      }
+      const llmRows = Array.from(new Set(d.humanVsLlm.llm.map((l) => l.model))).map((m) =>
+        "<tr><th class='left'>LLM · " + esc(name(m)) + "</th>" + columns.map((c) => {
+          const l = d.humanVsLlm.llm.find((x) => x.model === m && x.attitude === c);
+          return "<td>" + (l ? cell(l.score, l.recall) : "") + "</td>";
+        }).join("") + "</tr>");
+      document.getElementById("humanVsLlm").innerHTML = table([""].concat(columns.map((c) => ROLE_NAMES[c])),
+        ["<tr><th class='left'>Mensch</th>" + humanRow + "</tr>"].concat(llmRows));
+    }
+
+    function renderPaper(d) {
+      const keys = Object.keys(d.paper.scores).concat(d.models.filter((m) => !(m in d.paper.scores)));
+      document.getElementById("paperChart").innerHTML = keys.map((m) => {
+        const paper = d.paper.scores[m] || {};
+        const ours = d.scoreHeatmap[m] || {};
+        const label = name(m) + (d.paper.scores[m] ? (d.models.indexOf(m) < 0 ? " (nur Paper)" : "") : " (nur wir)");
+        return "<div class='model'><h3>" + esc(label) + "</h3><div class='bars'>" + d.attitudes.map((a) =>
+          "<div>" + esc(a) + "</div>" +
+          "<div>" + bar(paper[a], 10, "paper thin", name(m) + " · " + a + " · Paper: " + fmt(paper[a])) +
+          "<div style='height:2px'></div>" + bar(ours[a], 10, "thin", name(m) + " · " + a + " · wir: " + fmt(ours[a])) +
+          "</div><div class='value'>" + fmt(paper[a], 1) + " / <strong>" + fmt(ours[a], 1) + "</strong></div>").join("") +
+          "</div></div>";
+      }).join("");
+      document.getElementById("paperSource").textContent = "Quelle Paper-Werte: " + d.paper.source +
+        ". Gleiche Haltungs-Prompts, aber andere Beispiele, Modellversionen und Temperatur.";
+    }
+
+    function renderChallenge(d) {
+      document.getElementById("leaderboardTable").innerHTML = table(
+        ["Platz", "Gruppe", "Modell", "Einreichung", "Punkte", "Punkte Referenzmodell"],
+        d.leaderboard.map((e, i) => "<tr><td>" + (i + 1) + "</td><td class='left'>" + esc(e.group) + "</td><td>" +
+          esc(name(e.model_key)) + "</td><td>" + fmt(e.submission_no, 0) + "</td><td><strong>" + fmt(e.points, 0) +
+          "</strong></td><td>" + fmt(e.reference_points, 0) + "</td></tr>"));
+      document.getElementById("bestPrompts").innerHTML = d.leaderboard.length ? d.leaderboard.slice()
+        .sort((x, y) => x.group.localeCompare(y.group)).map((e) =>
+          "<div class='card'><strong>" + esc(e.group) + "</strong> · " + fmt(e.points, 0) + " Punkte (Einreichung " +
+          fmt(e.submission_no, 0) + ")<div class='prompt'>" + esc(e.prompt_text) + "</div></div>").join("")
+        : '<p class="empty">Noch keine Einreichungen.</p>';
+      document.getElementById("galleryTable").innerHTML = table(["Gruppe", "Nr.", "Punkte", "Referenz", "Prompt"],
+        d.gallery.map((g) => "<tr><td class='left'>" + esc(g.group) + "</td><td>" + fmt(g.submission_no, 0) + "</td><td>" +
+          fmt(g.points, 0) + "</td><td>" + fmt(g.reference_points, 0) + "</td><td class='prompt'>" +
+          esc(g.prompt_text) + "</td></tr>"));
+    }
+
+    function renderResolution(d) {
+      const c = d.predictionCheck;
+      const names = (list) => list.length ? list.map(name).join(", ") : "–";
+      document.getElementById("predictionResult").innerHTML =
+        "<p><strong>H1 · strict vs. lenient:</strong> Ø Recall strict " + fmt(c.recallStrict) + " · lenient " +
+        fmt(c.recallLenient) + " → <strong>" + esc(c.strictVsLenient || "noch offen") + "</strong></p>" +
+        "<p><strong>H2 · bester Judge</strong> auf bank_account (dem Code, den alle gesehen haben): <strong>" +
+        esc(names(c.bestBankAccount)) + "</strong> · bester LLM-Judge über alle Beispiele: " + esc(names(c.bestOverall)) + "</p>";
+      const mark = (hit) => "<td class='nowrap'>" + (hit ? "✅ richtig" : "❌ daneben") + "</td>";
+      document.getElementById("predictionCheck").innerHTML = table(
+        ["Gruppe", "Prognose H1 (strict vs. lenient)", "", "Prognose H2 (bester Judge)", ""],
+        c.predictions.map((p) => "<tr><td class='left nowrap'>" + esc(p.group) + "</td><td class='left'>" +
+          esc(p.strict_vs_lenient) + "</td>" + mark(p.strictVsLenientHit) + "<td>" + esc(name(p.best_model)) + "</td>" +
+          mark(p.bestHit) + "</tr>"));
+      document.getElementById("resolution").innerHTML = table(["Beispiel", "Defekt", "Art", "Zeilen", "Beschreibung"],
+        d.resolution.map((r) => "<tr><td class='left'>" + esc(r.snippet_id) + "</td><td>" + esc(r.defect_id) +
+          "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.lines) + "</td><td class='left'>" + esc(r.description) + "</td></tr>"));
+    }
+
+    function renderMore(d) {
       const models = d.models;
-
-      document.getElementById("scoreHeatmap").innerHTML = heatmap(d.scoreHeatmap, models, d.attitudes, 10, false, 1);
-      document.getElementById("recallHeatmap").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, false, 2);
-      document.getElementById("fpHeatmap").innerHTML = heatmap(d.fpHeatmap, models, d.attitudes, 3, true, 1);
-
-      document.getElementById("defectByModel").innerHTML = table(["Snippet", "Defekt", "Art"].concat(models),
+      document.getElementById("defectByModel").innerHTML = table(["Beispiel", "Defekt", "Art"].concat(models.map(name)),
         d.defectByModel.map((row) => "<tr><td class='left'>" + esc(row.snippet_id) + "</td><td>" + esc(row.defect_id) +
           "</td><td>" + esc(row.kind) + "</td>" + models.map((m) =>
             "<td style='background:" + color(row.rates[m], 1) + "'>" + fmt(row.rates[m], 2) + "</td>").join("") + "</tr>"));
-      document.getElementById("spearman").innerHTML = table([""].concat(models), models.map((a) =>
-        "<tr><th class='left'>" + esc(a) + "</th>" + models.map((b) => "<td>" + fmt(d.spearman[a][b], 2) + "</td>").join("") + "</tr>"));
+      document.getElementById("spearman").innerHTML = table([""].concat(models.map(name)), models.map((a) =>
+        "<tr><th class='left'>" + esc(name(a)) + "</th>" + models.map((b) => "<td>" + fmt(d.spearman[a][b], 2) + "</td>").join("") + "</tr>"));
 
-      const datasets = models.map((m) => ({ label: m, data: d.recallByLevel.series[m], spanGaps: true, tension: 0.2 }));
+      const datasets = models.map((m) => ({ label: name(m), data: d.recallByLevel.series[m], spanGaps: true, tension: 0.2,
+                                            borderWidth: 2, pointRadius: 5 }));
       if (window.Chart) {
         if (!chart) {
           chart = new Chart(document.getElementById("levelChart"), {
             type: "line",
             data: { labels: d.recallByLevel.levels, datasets: datasets },
-            options: { animation: false, scales: { y: { min: 0, max: 1, title: { display: true, text: "Recall" } } },
-                       plugins: { legend: { labels: { font: { size: 16 } } } } },
+            options: { animation: false, interaction: { mode: "index", intersect: false },
+                       scales: { y: { min: 0, max: 1, title: { display: true, text: "Recall" } } },
+                       plugins: { legend: { labels: { font: { size: 18 } } } } },
           });
         } else {
           chart.data.datasets = datasets;
@@ -175,37 +320,42 @@
         models.map((m) => {
           const t = d.testsDelta[m];
           const delta = t.recallWith === null || t.recallWithout === null ? null : t.recallWith - t.recallWithout;
-          return "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(t.recallWith) + "</td><td>" + fmt(t.recallWithout) +
+          return "<tr><th class='left'>" + esc(name(m)) + "</th><td>" + fmt(t.recallWith) + "</td><td>" + fmt(t.recallWithout) +
             "</td><td>" + fmt(delta) + "</td><td>" + fmt(t.fpWith, 1) + "</td><td>" + fmt(t.fpWithout, 1) + "</td></tr>";
         }));
       document.getElementById("publicVsPrivate").innerHTML = table(["Modell", "Recall QuixBugs", "Recall bank_account"],
-        models.map((m) => "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(d.publicVsPrivate[m].quixbugs) +
+        models.map((m) => "<tr><th class='left'>" + esc(name(m)) + "</th><td>" + fmt(d.publicVsPrivate[m].quixbugs) +
           "</td><td>" + fmt(d.publicVsPrivate[m].bank_account) + "</td></tr>"));
       const failureModels = Array.from(new Set(Object.keys(d.parseFailures).concat(Object.keys(d.infraErrors)))).sort();
       document.getElementById("parseFailures").innerHTML = table(["Modell", "unlesbar", "gewertete Läufe", "Fehler (Key, Limit, Netz)"],
         failureModels.map((m) => {
           const p = d.parseFailures[m] || { failed: 0, total: 0 };
-          return "<tr><th class='left'>" + esc(m) + "</th><td>" + p.failed + "</td><td>" + p.total +
+          return "<tr><th class='left'>" + esc(name(m)) + "</th><td>" + p.failed + "</td><td>" + p.total +
             "</td><td>" + (d.infraErrors[m] || 0) + "</td></tr>";
         }));
+    }
 
-      document.getElementById("predictions").innerHTML = table(["Gruppe", "Bester Judge (Prognose)", "strict vs. lenient"],
-        d.predictions.map((p) => "<tr><td class='left'>" + esc(p.group) + "</td><td>" + esc(p.best_model) +
-          "</td><td class='left'>" + esc(p.strict_vs_lenient) + "</td></tr>"));
+    function render(d) {
+      data = d;
+      document.getElementById("status").textContent =
+        d.runs + " Läufe · aktualisiert " + new Date().toLocaleTimeString("de-DE");
+      document.getElementById("connected").innerHTML = "Verbunden: " + Object.keys(d.connected).map((g) =>
+        esc(g) + " " + (d.connected[g] ? "✅" : "⏳")).join(" · ");
+      document.getElementById("phaseNow").textContent = d.phase === undefined ? "–" : d.phase;
 
-      document.getElementById("leaderboardTable").innerHTML = table(
-        ["Platz", "Gruppe", "Modell", "Einreichung", "Punkte", "Punkte Referenzmodell"],
-        d.leaderboard.map((e, i) => "<tr><td>" + (i + 1) + "</td><td class='left'>" + esc(e.group) + "</td><td>" +
-          esc(e.model_key) + "</td><td>" + fmt(e.submission_no, 0) + "</td><td><strong>" + fmt(e.points, 0) +
-          "</strong></td><td>" + fmt(e.reference_points, 0) + "</td></tr>"));
-      document.getElementById("galleryTable").innerHTML = table(["Gruppe", "Nr.", "Punkte", "Referenz", "Prompt"],
-        d.gallery.map((g) => "<tr><td class='left'>" + esc(g.group) + "</td><td>" + fmt(g.submission_no, 0) + "</td><td>" +
-          fmt(g.points, 0) + "</td><td>" + fmt(g.reference_points, 0) + "</td><td class='prompt'>" +
-          esc(g.prompt_text) + "</td></tr>"));
-
-      document.getElementById("resolution").innerHTML = table(["Snippet", "Defekt", "Art", "Zeilen", "Beschreibung"],
-        d.resolution.map((r) => "<tr><td class='left'>" + esc(r.snippet_id) + "</td><td>" + esc(r.defect_id) +
-          "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.lines) + "</td><td class='left'>" + esc(r.description) + "</td></tr>"));
+      const models = d.models;
+      document.getElementById("scoreHeatmap").innerHTML = heatmap(d.scoreHeatmap, models, d.attitudes, 10, 1);
+      document.getElementById("recallHeatmap").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, 2);
+      document.getElementById("recallHeatmap3").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, 2);
+      document.getElementById("fpHeatmap").innerHTML = heatmap(d.fpHeatmap, models, d.attitudes, 3, 1);
+      document.getElementById("predictions").innerHTML = table(["Gruppe", "H1 (strict vs. lenient)", "H2 (bester Judge)"],
+        d.predictions.map((p) => "<tr><td class='left nowrap'>" + esc(p.group) + "</td><td class='left'>" + esc(p.strict_vs_lenient) +
+          "</td><td>" + esc(name(p.best_model)) + "</td></tr>"));
+      renderHuman(d);
+      renderPaper(d);
+      renderChallenge(d);
+      renderResolution(d);
+      renderMore(d);
     }
 
     function load() {
@@ -221,22 +371,53 @@
         .getData(SESSION, document.getElementById("precomputed").checked);
     }
 
-    // Apps Script zeigt die Seite in einem iframe; Sprunglinks (#rq2 …) navigieren dort nicht
-    // zuverlässig. Deshalb scrollen die Links per Skript zum Abschnitt.
-    document.querySelectorAll("nav a").forEach((link) => {
-      link.addEventListener("click", (event) => {
-        event.preventDefault();
-        const target = document.getElementById(link.getAttribute("href").slice(1));
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
+    // --- Phasen, Admin-Modus ----------------------------------------------------------
 
+    function setPhase(n) {
+      const message = document.getElementById("adminMessage");
+      message.textContent = "setze …";
+      google.script.run
+        .withSuccessHandler((result) => {
+          message.textContent = result.status === "ok" ? "✅ Phase " + result.phase : "⚠️ " + result.message;
+          load();
+        })
+        .withFailureHandler((err) => { message.textContent = "⚠️ " + err.message; })
+        .setPhase(n, ADMIN);
+    }
+
+    function showView(n) {
+      view = n;
+      document.querySelectorAll("section[data-view]").forEach((s) => s.classList.toggle("shown", s.dataset.view === String(n)));
+      document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.show === String(n)));
+      window.scrollTo(0, 0);
+      // Im Admin-Modus öffnet dieselbe Ansicht die passenden Reiter – aber schließt nie welche.
+      if (ADMIN && data && window.google && google.script && VIEW_PHASE[n] > (data.phase || 0)) setPhase(VIEW_PHASE[n]);
+    }
+
+    document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => showView(Number(b.dataset.show))));
+    document.addEventListener("keydown", (event) => {
+      if (event.target.tagName === "INPUT" || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (/^[1-5]$/.test(event.key)) showView(Number(event.key));
+    });
+    if (ADMIN) {
+      document.getElementById("admin").style.display = "block";
+      document.getElementById("phaseButtons").innerHTML = [0, 1, 2, 3, 4, 5].map((n) =>
+        "<button data-phase='" + n + "'>" + n + "</button>").join("");
+      document.querySelectorAll("#phaseButtons button").forEach((b) =>
+        b.addEventListener("click", () => setPhase(Number(b.dataset.phase))));
+    }
+    document.getElementById("revealRoles").addEventListener("click", () => {
+      rolesRevealed = true;
+      document.getElementById("revealRoles").style.display = "none";
+      if (data) renderHuman(data);
+    });
     document.getElementById("session").textContent = SESSION;
     document.getElementById("precomputed").addEventListener("change", load);
     document.getElementById("reveal").addEventListener("click", () => {
       document.getElementById("resolution").style.display = "block";
       document.getElementById("reveal").style.display = "none";
     });
+    showView(view);
     load();
     setInterval(load, REFRESH_MS);
   </script>

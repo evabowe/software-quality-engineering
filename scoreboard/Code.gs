@@ -5,6 +5,7 @@
  *   runs     – eine Zeile pro LLM-Lauf, Kopfzeile = FIELDS (wird automatisch angelegt)
  *   config   – Schlüssel/Wert-Paare: token, session_id (aktive Session), phase (0–5), admin_token
  *   keys     – Gruppencodes: code | group | openrouter_key | active (privat, nur dieses Skript liest ihn)
+ *   joins    – erfolgreiche Joins: timestamp | session_id | group (wird automatisch angelegt)
  *   defects  – Ground Truth, per Upload aus dem Instructor-Notebook (für RQ1-Matrix und Auflösung)
  *
  * doPost  – nimmt Läufe ({token, record}) oder die Ground Truth ({token, defects}) an
@@ -54,6 +55,27 @@ const FIELDS = [
 
 // Gleiche Werte wie POINTS in judge_lab/config.py
 const POINTS = { tp: 2, fp_bug: -1 };
+
+// Gleiche Texte wie STRICT_VS_LENIENT_OPTIONS in judge_lab/ui.py; Gruppen wie GROUPS in judge_lab/config.py
+const STRICT_VS_LENIENT = [
+  "strict findet mehr Fehler",
+  "beide finden etwa gleich viele – strict vergibt nur schlechtere Noten",
+  "lenient findet mehr Fehler"
+];
+const GROUP_NAMES = ["Gruppe 1", "Gruppe 2", "Gruppe 3", "Gruppe 4"];
+// Unterschied im Recall, ab dem strict bzw. lenient als „findet mehr“ gilt
+const RECALL_TIE = 0.1;
+
+// Ø Gesamtscore je Modell und Haltung aus Chou (2026), Tabelle 6 (fest übernommen)
+const PAPER = {
+  source: "Chou (2026), AI-as-a-Judge for software quality assessment, Tabelle 6",
+  scores: {
+    gemini: { strict: 4.66, objective: 7.28, lenient: 7.99 },
+    deepseek: { strict: 4.17, objective: 6.53, lenient: 7.54 },
+    kimi: { strict: 4.29, objective: 6.69, lenient: 7.2 },
+    doubao: { strict: 4.8, objective: 6.84, lenient: 8.06 },
+  },
+};
 
 const DEFECT_FIELDS = ["snippet_id", "defect_id", "kind", "lines", "description"];
 const ATTITUDES = ["strict", "objective", "lenient"];
@@ -148,9 +170,23 @@ function submissionPoints(rows) {
   return rows.reduce((sum, r) => sum + POINTS.tp * (num(r.tp) || 0) + POINTS.fp_bug * (num(r.fp) || 0), 0);
 }
 
+function latestPerGroup(rows) {
+  return Object.values(groupBy(rows, (r) => r.group))
+    .map((list) => list.slice().sort((x, y) => String(x.timestamp).localeCompare(String(y.timestamp))).pop())
+    .sort((x, y) => String(x.group).localeCompare(String(y.group)));
+}
+
+/** Schlüssel mit dem höchsten Wert (bei Gleichstand alle); leere Liste ohne Werte. */
+function argmax(values) {
+  const known = Object.entries(values).filter(([, v]) => v !== null);
+  if (!known.length) return [];
+  const best = Math.max(...known.map(([, v]) => v));
+  return known.filter(([, v]) => v === best).map(([k]) => k).sort();
+}
+
 // --- Aggregation (reine Funktion, mit Node getestet) ----------------------------
 
-function aggregate(rows, defects, sessionId, includePrecomputed) {
+function aggregate(rows, defects, sessionId, includePrecomputed, joins) {
   // Ein Retry nach Timeout kann einen Lauf doppelt anhängen: gleiche run_id nur einmal zählen.
   const seen = {};
   const selected = rows.filter((r) => {
@@ -229,10 +265,61 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
   });
 
   // Prognosen: je Gruppe die letzte
-  const predictions = Object.values(groupBy(selected.filter((r) => r.phase === "prognosis"), (r) => r.group))
-    .map((list) => list.sort((x, y) => String(x.timestamp).localeCompare(String(y.timestamp))).pop())
-    .map((r) => ({ group: r.group, best_model: r.prediction_best_model, strict_vs_lenient: r.prediction_strict_vs_lenient }))
-    .sort((x, y) => x.group.localeCompare(y.group));
+  const predictions = latestPerGroup(selected.filter((r) => r.phase === "prognosis"))
+    .map((r) => ({ group: r.group, best_model: r.prediction_best_model, strict_vs_lenient: r.prediction_strict_vs_lenient }));
+
+  // Schritt 1: menschliche Gutachten, je Gruppe das letzte (eine Korrektur ersetzt das erste)
+  const human = latestPerGroup(selected.filter((r) => r.phase === "human")).map((r) => ({
+    group: r.group, role: r.attitude, score: num(r.weighted_score), tp: num(r.tp), fp: num(r.fp),
+    n_defects: num(r.n_defects), recall: num(r.recall),
+  }));
+
+  // Schritt 2: gleicher Code (bank_account, ohne Tests) – Mensch je Rolle neben LLM je Modell × Haltung
+  const bank = a1.filter((r) => r.snippet_id === "bank_account" && !bool(r.with_tests));
+  const humanVsLlm = {
+    human: human.map((h) => ({ group: h.group, role: h.role, score: h.score, recall: h.recall })),
+    llm: [],
+  };
+  models.forEach((model) => ATTITUDES.forEach((attitude) => {
+    const runs = bank.filter((r) => r.model_key === model && r.attitude === attitude);
+    if (runs.length) {
+      humanVsLlm.llm.push({ model: model, attitude: attitude, score: mean(runs.map((r) => r.weighted_score)),
+                            recall: mean(runs.map((r) => r.recall)), runs: runs.length });
+    }
+  }));
+
+  // Verbunden: mindestens ein Datensatz oder ein Join in dieser Session
+  const connected = {};
+  GROUP_NAMES.forEach((g) => {
+    connected[g] = selected.some((r) => r.group === g && r.session_id === sessionId) ||
+      (joins || []).some((j) => j.group === g && j.session_id === sessionId);
+  });
+
+  // Auflösung der Prognosen. H2 auf bank_account, dem einzigen Code, den auch die Menschen gesehen haben.
+  const bankRecall = {};
+  models.forEach((m) => { bankRecall[m] = mean(bank.filter((r) => r.model_key === m).map((r) => r.recall)); });
+  bankRecall.human = mean(human.map((h) => h.recall));
+  const overallRecall = {};
+  models.forEach((m) => { overallRecall[m] = mean(a1.filter((r) => r.model_key === m).map((r) => r.recall)); });
+  const recallStrict = mean(a1.filter((r) => r.attitude === "strict").map((r) => r.recall));
+  const recallLenient = mean(a1.filter((r) => r.attitude === "lenient").map((r) => r.recall));
+  let strictVsLenient = null;
+  if (recallStrict !== null && recallLenient !== null) {
+    const delta = recallStrict - recallLenient;
+    strictVsLenient = STRICT_VS_LENIENT[Math.abs(delta) < RECALL_TIE ? 1 : delta > 0 ? 0 : 2];
+  }
+  const bestBankAccount = argmax(bankRecall);
+  const predictionCheck = {
+    bestBankAccount: bestBankAccount,
+    bestOverall: argmax(overallRecall),
+    recallStrict: recallStrict,
+    recallLenient: recallLenient,
+    strictVsLenient: strictVsLenient,
+    predictions: predictions.map((p) => Object.assign({}, p, {
+      bestHit: bestBankAccount.indexOf(p.best_model) >= 0,
+      strictVsLenientHit: strictVsLenient !== null && p.strict_vs_lenient === strictVsLenient,
+    })),
+  };
 
   // Prompt-Challenge
   const challenge = selected.filter((r) => r.phase === "a2_submit" || r.phase === "reference");
@@ -272,6 +359,11 @@ function aggregate(rows, defects, sessionId, includePrecomputed) {
     parseFailures: parseFailures,
     infraErrors: infraErrors,
     predictions: predictions,
+    human: human,
+    humanVsLlm: humanVsLlm,
+    paper: PAPER,
+    connected: connected,
+    predictionCheck: predictionCheck,
     leaderboard: leaderboard,
     gallery: gallery.sort((x, y) => x.group.localeCompare(y.group) || x.submission_no - y.submission_no),
     resolution: defects,
@@ -333,6 +425,13 @@ function readTable_(name) {
   return values.slice(1).map((row) => Object.fromEntries(header.map((key, i) => [key, row[i]])));
 }
 
+/** Protokolliert einen erfolgreichen Join (für „Verbunden“ im Dashboard); ohne Key. */
+function logJoin_(sessionId, group) {
+  const joins = sheet_("joins");
+  if (joins.getLastRow() === 0) joins.appendRow(["timestamp", "session_id", "group"]);
+  joins.appendRow([new Date().toISOString(), cellValue(sessionId), cellValue(group)]);
+}
+
 function json_(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -371,7 +470,8 @@ function doPost(e) {
 /** Wird vom Dashboard über google.script.run aufgerufen. */
 function getData(sessionId, includePrecomputed) {
   const config = config_();
-  const data = aggregate(readTable_("runs"), readTable_("defects"), sessionId || config.session_id, !!includePrecomputed);
+  const data = aggregate(readTable_("runs"), readTable_("defects"), sessionId || config.session_id, !!includePrecomputed,
+                         readTable_("joins"));
   data.phase = readPhase(config);
   return data;
 }
@@ -392,7 +492,9 @@ function doGet(e) {
   const params = (e && e.parameter) || {};
   const session = params.session || config_().session_id || "";
   if (params.action === "join") {
-    return json_(joinLookup(readTable_("keys"), config_(), params));
+    const answer = joinLookup(readTable_("keys"), config_(), params);
+    if (answer.status === "ok") logJoin_(params.session || session, answer.group);
+    return json_(answer);
   }
   if (params.format === "phase") {
     return json_({ phase: readPhase(config_()) });
@@ -410,4 +512,4 @@ function doGet(e) {
 }
 
 // Für die Tests mit Node; in Apps Script ist `module` nicht definiert.
-if (typeof module !== "undefined") module.exports = { aggregate, cellValue, joinLookup, phaseUpdate, readPhase, FIELDS, POINTS };
+if (typeof module !== "undefined") module.exports = { aggregate, cellValue, joinLookup, phaseUpdate, readPhase, FIELDS, POINTS, STRICT_VS_LENIENT };
