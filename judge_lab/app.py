@@ -180,7 +180,7 @@ class AppView:
                 if index not in self.built:
                     self.built[index] = self.factories[index]()
                     container.children = (self.built[index],)
-            else:
+            elif not container.children:
                 container.children = (_block(f"<p style='font-size:1.2em'>{LOCK_TEXT}</p>"),)
         self.refresh_status()
 

@@ -127,3 +127,13 @@ def test_poller_starts_only_once(monkeypatch):
     app.start_polling(phase.PhaseGate(scripted()))
     app.start_polling(phase.PhaseGate(scripted()))
     assert len(started) == 1
+
+
+def test_polling_same_phase_does_not_recreate_widgets(view):
+    # Alle 10 s eine Abfrage: ohne Änderung dürfen keine neuen Widgets entstehen (Colab-Frontend würde volllaufen).
+    gate = phase.PhaseGate(scripted(1, 1, 1))
+    app.poll_once(gate)
+    locked = view.containers[3].children[0]
+    app.poll_once(gate)
+    app.poll_once(gate)
+    assert view.containers[3].children[0] is locked
