@@ -123,11 +123,20 @@ def start_panel(on_change: Callable[[], None]) -> StartPanel:
     return StartPanel(widget, code, button, message, advanced)
 
 
+_REFRESHERS: list[Callable[[], None]] = []
+
+
+def _register(panel):
+    """Panels, deren Inhalt von der Gruppe abhängt, werden nach dem Start aktualisiert."""
+    _REFRESHERS.append(panel.refresh)
+    return panel.widget
+
+
 def _panels(start: StartPanel) -> list[Callable[[], widgets.Widget]]:
     """Ein Baukasten je Reiter; gebaut wird erst beim Entsperren."""
     return [
         lambda: start.widget,
-        ui.snippet_viewer,
+        lambda: _register(ui.human_panel()),
         lambda: widgets.VBox([ui.prognosis_panel(), _block(TIPS_STEP2)]),
         ui.assignment1_panel,
         lambda: widgets.VBox([_block(RULES_CHALLENGE), ui.assignment2_panel()]),
@@ -160,6 +169,8 @@ class AppView:
         self.refresh_status()
 
     def refresh_status(self) -> None:
+        for refresh in _REFRESHERS:
+            refresh()
         self.status.value = f"<div style='font-size:1.1em;padding:4px 0'><b>{html.escape(status_text())}</b></div>"
 
 
@@ -169,6 +180,7 @@ _CURRENT: AppView | None = None
 def build() -> AppView:
     """Baut die Oberfläche neu (z. B. nach erneutem Ausführen der Zelle); der Zustand bleibt."""
     global _CURRENT
+    _REFRESHERS.clear()
     containers = [widgets.VBox() for _ in TABS]
     tab = widgets.Tab(children=containers)
     for index, title in enumerate(TABS):

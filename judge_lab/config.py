@@ -48,6 +48,12 @@ TIMEOUTS = {"openrouter": 90, "ollama": 180}  # Sekunden pro LLM-Aufruf
 MAX_RETRIES = 3  # bei 429/5xx/Timeout, exponentieller Backoff im openai-SDK
 CONCURRENCY = {"openrouter": 6, "ollama": 1, "mock": 4}
 
+# --- Schritt 1: menschliches Gutachten ------------------------------------------
+
+# Verdeckte Rollenkarte je Gruppe (prompts/role_cards_de.md); None = Kontrollgruppe ohne Rolle
+HUMAN_ROLES = {"Gruppe 1": "strict", "Gruppe 2": "objective", "Gruppe 3": "lenient", "Gruppe 4": None}
+HUMAN_SNIPPET = "bank_account"
+
 # --- Prompt-Challenge -------------------------------------------------------
 
 CHALLENGE_MAX_SUBMISSIONS = 3

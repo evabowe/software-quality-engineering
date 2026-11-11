@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import threading
 import time
 import traceback
@@ -23,11 +24,12 @@ import pandas as pd
 import requests
 from IPython.display import HTML, display
 
-from judge_lab import join, ollama_colab
+from judge_lab import human, join, ollama_colab
 from judge_lab.config import (
     CHALLENGE_MAX_SUBMISSIONS,
     DEFAULT_SESSION_ID,
     GROUPS,
+    HUMAN_SNIPPET,
     MODELS,
     PROMPTS_DIR,
     SCOREBOARD_TOKEN,
@@ -63,6 +65,7 @@ class Session:
     last_submission_hash: str = ""
     local_only: int = 0  # Läufe, die das Scoreboard nicht erreicht haben (nur in der CSV)
     a1_records: list = field(default_factory=list)
+    human_record: dict | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def require_setup(self) -> None:
@@ -134,6 +137,23 @@ def join_group(code: str) -> str:
     group, api_key = join.join(code, url=SCOREBOARD_URL, token=SCOREBOARD_TOKEN, session_id=DEFAULT_SESSION_ID)
     configure(group, api_key)
     return f"✅ Ihr seid {group} – euer Judge heißt {judge_name(SESSION.model_key)}"
+
+
+def submit_human(lines_text: str, score: int, justification: str, *, correction: bool = False
+                 ) -> tuple[dict | None, str]:
+    """Schritt 1: Gutachten der Gruppe messen und senden. Einmalig; ``correction`` erlaubt eine Korrektur."""
+    SESSION.require_setup()
+    if SESSION.human_record and not correction:
+        return None, "Ihr habt euer Gutachten schon abgegeben. Korrigieren geht unter „Erweitert“."
+    if not justification.strip():
+        return None, "Bitte noch eine Begründung in einem Satz eintragen."
+    try:
+        findings = human.parse_lines(lines_text, get_snippet(HUMAN_SNIPPET).line_count)
+    except human.InputError as exc:
+        return None, str(exc)
+    record = human.human_record(SESSION.context(), findings, score=score, justification=justification.strip())
+    SESSION.human_record = record
+    return record, human.feedback(record)
 
 
 def run_assignment1(on_progress=None) -> list[dict]:
@@ -292,7 +312,7 @@ def _show_local_only(before: int) -> None:
 
 
 def friendly_error(exc: BaseException) -> str:
-    if isinstance(exc, ConfigError):
+    if isinstance(exc, (ConfigError, human.InputError)):
         return f"⚠️ {exc}"
     if isinstance(exc, requests.RequestException):
         return "⚠️ Keine Verbindung zum Server. Bitte WLAN prüfen und erneut versuchen."
@@ -389,6 +409,98 @@ def setup_panel(on_saved=None) -> widgets.Widget:
     show_model()
     button.on_click(_guarded(out, save))
     return widgets.VBox([group, model, key, fallback, mock, button, out])
+
+
+def role_card_html(group: str | None) -> str:
+    if not group:
+        return "<p>Bitte zuerst im Reiter „Start“ den Gruppencode eingeben – dann erscheint hier eure Rollenkarte.</p>"
+    card = html.escape(human.role_card(group))
+    card = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", card).replace("\n", "<br>")
+    return (
+        "<div style='background:#fff7e6;border:2px solid #f0b429;border-radius:6px;padding:10px 14px;max-width:60em'>"
+        f"<div style='font-size:1.1em'><b>🤫 Eure Rollenkarte – Nicht verraten!</b></div><p>{card}</p></div>"
+    )
+
+
+HUMAN_INSTRUCTIONS = """
+<p>Lest den Code und bewertet ihn <b>in eurer Rolle</b>:</p>
+<ol>
+  <li><b>Zeilen mit Fehlern</b> – einzelne Zeilen oder Bereiche, z. B. <code>26, 31, 39-40</code> (oder „keine“)</li>
+  <li><b>Score 1–10</b> – wie gut ist der Code insgesamt?</li>
+  <li><b>Begründung</b> in einem Satz</li>
+</ol>
+<p>Abgeben könnt ihr einmal. Danach seht ihr, <i>wie viele</i> Defekte ihr gefunden habt – <i>welche</i>, verraten wir erst bei der Auflösung.</p>
+"""
+
+
+@dataclass
+class HumanPanel:
+    widget: widgets.Widget
+    card: widgets.HTML
+    lines: widgets.Text
+    score: widgets.IntSlider
+    justification: widgets.Text
+    submit: widgets.Button
+    message: widgets.HTML
+
+    def refresh(self) -> None:
+        self.card.value = role_card_html(SESSION.group)
+
+
+def human_panel() -> HumanPanel:
+    card = widgets.HTML(role_card_html(SESSION.group))
+    wide = {"description_width": "initial"}
+    lines = widgets.Text(placeholder="z. B. 26, 31, 39-40", description="Zeilen mit Fehlern:", style=wide,
+                         layout=widgets.Layout(width="30em"))
+    score = widgets.IntSlider(value=5, min=1, max=10, description="Score 1–10:", style=wide)
+    justification = widgets.Text(placeholder="ein Satz", description="Begründung:", style=wide,
+                                 layout=widgets.Layout(width="60em"))
+    submit = widgets.Button(description="Gutachten abgeben", button_style="primary")
+    message = widgets.HTML()
+    correct = widgets.Button(description="Gutachten korrigieren")
+    advanced = widgets.Accordion(children=[widgets.VBox([
+        widgets.HTML("Nur nach Rücksprache: Die korrigierte Fassung ersetzt die erste auf dem Scoreboard."), correct])])
+    advanced.set_title(0, "Erweitert")
+    advanced.selected_index = None
+    panel = HumanPanel(widgets.VBox([card, widgets.HTML(HUMAN_INSTRUCTIONS), widgets.HTML(snippet_html(HUMAN_SNIPPET)),
+                                     lines, score, justification, submit, message, advanced]),
+                       card, lines, score, justification, submit, message)
+    state = {"correction": False}
+
+    def lock():
+        submit.disabled, submit.description = True, "✅ abgegeben"
+
+    def send(*_):
+        card.value = role_card_html(SESSION.group)
+        record, text = submit_human(lines.value, score.value, justification.value, correction=state["correction"])
+        color = "#1f2933" if record else "#b45309"
+        message.value = f"<div style='color:{color};font-size:1.1em'><b>{html.escape(text)}</b></div>"
+        if record:
+            state["correction"] = False
+            lock()
+
+    def unlock(*_):
+        state["correction"] = True
+        submit.disabled, submit.description = False, "Korrektur abgeben"
+
+    if SESSION.human_record:
+        lock()
+        message.value = f"<b>{html.escape(human.feedback(SESSION.human_record))}</b>"
+    submit.on_click(_guarded_html(message, _debounced(send)))
+    correct.on_click(unlock)
+    return panel
+
+
+def _guarded_html(target: widgets.HTML, action):
+    """Wie ``_guarded``, aber die Meldung landet in einem HTML-Widget (funktioniert auch aus Threads)."""
+
+    def handler(*args):
+        try:
+            action(*args)
+        except Exception as exc:  # noqa: BLE001
+            target.value = f"<div style='color:#b45309'><b>{html.escape(friendly_error(exc))}</b></div>"
+
+    return handler
 
 
 def prognosis_panel() -> widgets.Widget:

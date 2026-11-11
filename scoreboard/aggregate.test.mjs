@@ -185,3 +185,14 @@ test("join: unbekannte und inaktive Codes", () => {
                    { status: "error", message: "Code unbekannt" });
   assert.equal(joinLookup(keys, { token: "t" }, { code: "", token: "t" }).status, "error");
 });
+
+test("menschliche Gutachten zählen nicht als LLM-Läufe", () => {
+  const rows = [
+    run({ phase: "human", model_key: "human", attitude: "strict", snippet_id: "bank_account", parse_ok: true, recall: 0.5 }),
+    run({ phase: "human", model_key: "human", attitude: "none", snippet_id: "bank_account", parse_ok: "" }),
+  ];
+  const data = aggregate(rows, DEFECTS, "live", false);
+  assert.deepEqual(data.models, []);
+  assert.deepEqual(data.parseFailures, {});
+  assert.deepEqual(data.infraErrors, {});
+});

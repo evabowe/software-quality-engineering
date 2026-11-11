@@ -21,7 +21,7 @@ RECORD_FIELDS = (
     "run_id",  # eindeutig je Lauf; das Dashboard entfernt doppelt gesendete Läufe
     "session_id",
     "group",
-    "phase",  # prognosis | a1 | a2_probe | a2_submit | reference
+    "phase",  # human | prognosis | a1 | a2_probe | a2_submit | reference
     "model_key",
     "model_id",
     "attitude",
