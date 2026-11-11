@@ -10,3 +10,6 @@ __pycache__/
 
 # Lokale Scoreboard-Sicherung
 scoreboard_backup.csv
+
+# Superpowers-Arbeitsverzeichnis
+.superpowers/
