@@ -1,8 +1,8 @@
 # Hands-on „LLM-as-a-Judge für Softwarequalität“ – Konzept
 
-**Session:** 19.11.2026, 45 min Hands-on · **Verantwortlich Infrastruktur/roter Faden:** Eva
+**Session:** 19.11.2026, 75 min interaktiv (seit 11.11.2026, vorher 45 min Hands-on) · **Verantwortlich Infrastruktur/roter Faden:** Eva
 
-Abschnitte 1–4 entsprechen dem Konzept vom 31.10.2026; Abschnitt 5 beschreibt den Stand der Umsetzung und alle Abweichungen. Das vollständige Konzept inklusive Implementierungsteil liegt unter `docs/superpowers/specs/2026-10-31-judge-lab-design.md`.
+Abschnitte 1, 3 und 4 entsprechen dem Konzept vom 31.10.2026; Abschnitt 2 und die Ansichten in Abschnitt 4 folgen dem Umbau auf 75 Minuten (`docs/plans/2026-11-11-interaktive-session.md`). Abschnitt 5 beschreibt den Stand der Umsetzung und alle Abweichungen. Das vollständige Konzept inklusive Implementierungsteil liegt unter `docs/superpowers/specs/2026-10-31-judge-lab-design.md`.
 
 ---
 
@@ -36,20 +36,26 @@ Eigene Zusatzfaktoren über das Paper hinaus:
 
 ---
 
-## 2. Ablauf der 45 Minuten (mit Methoden aus dem Methodenpool CAU Kiel)
+## 2. Ablauf der 75 Minuten (mit Methoden aus dem Methodenpool CAU Kiel)
 
-| Zeit | Phase | Methode | Inhalt | Wer |
+Vorgaben der Dozentin: höchstens 75 min, so interaktiv und anwendungsorientiert wie möglich, mindestens zwei Methoden aus dem Methodenpool, die keine andere Gruppe nutzt. Unsere Wahl (vorbehaltlich Freigabe): **Gutachten erstellen** und **AI Challenge**, optional **Heißer Stuhl**.
+
+Die Session ist **aufbauend**: Erst urteilen die Studierenden selbst, dann urteilt das LLM über denselben Code, dann über alle Beispiele, zum Schluss schreiben die Gruppen eigene Judge-Prompts. Im Notebook führt eine Oberfläche mit Reitern durch die Schritte; die Lehrenden schalten die Reiter vom Dashboard aus frei.
+
+| Min. | Phase | Methode | Inhalt | Wer |
 |---|---|---|---|---|
-| 0–5 | Einstieg & Setup | – | QR-Code → Colab. 4 Zweiergruppen, jede Gruppe = ein Judge-Modell. Gruppe 4 startet sofort die Ollama-Zelle (Download läuft im Hintergrund). Setup-Zelle ausführen, Gruppe wählen. | Eva |
-| 5–7 | Prognose | **Think-Pair-Share** (Think/Pair) | Jedes Paar beantwortet im Notebook 2 Prognosefragen (Dropdowns), die auf das Scoreboard gehen: (a) Welcher Judge findet die meisten Fehler? (b) Findet „strict“ mehr Fehler als „lenient“ – oder vergibt es nur schlechtere Noten? | Gruppen |
-| 7–17 | **Auftrag 1: Replikation** | – | Ein Klick → Matrix: 6 Snippets × 3 Haltungen × {mit, ohne Tests}. Ergebnisse automatisch auf dem Scoreboard. Leitfragen im Notebook: Wie unterscheiden sich die Scores je Haltung? Ändert sich auch, was gefunden wird? | Gruppen, Eva betreut |
-| 17–32 | **Auftrag 2: Prompt-Challenge** | – | Gruppen schreiben einen eigenen Judge-Prompt. Ziel: möglichst viele echte Defekte, möglichst wenige Fehlalarme, gute Erklärungen. Probeläufe unbegrenzt auf einem Snippet, **max. 3 offizielle Einreichungen** (laufen immer über alle 6 Snippets → Prompt muss generalisieren). Live-Leaderboard. | Gruppen, Eva + Jessica betreuen |
-| 32–40 | Auswertung | **Vernissage** (digital) + **Share** | Scoreboard am Beamer: Heatmaps zu RQ1/RQ2/RQ3 und Zusatzfaktoren; Prognosen vs. Ergebnis. Prompt-Galerie: alle eingereichten Prompts nebeneinander; Gewinnergruppe erklärt ihren Prompt; Plenum stimmt über die beste Erklärung ab. | Eva moderiert, Alea ordnet ins Paper ein |
-| 40–45 | Abschluss | **Blitzlicht** | Ein Satz pro Person: „Würde ich einen LLM-Judge in die CI einbauen – unter welcher Bedingung?“ + Wiederholung der Umfrage von Folie 5 (Vorher/Nachher). | alle |
+| 0–5 | Ankommen, Setup, Vorher-Umfrage | Clicker (Menti) | QR-Code → Colab (Gruppe 4: zweiter QR-Code, GPU-Notebook). ▶ Start, Gruppencode von der Folie eintippen. Dashboard: „4/4 Gruppen verbunden“. | Eva |
+| 5–15 | ① Ihr seid der Judge | **Gutachten erstellen** | Jede Gruppe bewertet `bank_account` in einer **verdeckten Rolle** (Gruppe 1 strict, 2 objective, 3 lenient, 4 ohne Rolle = Kontrollgruppe): Fehlerzeilen, Score 1–10, ein Satz Begründung. Rückmeldung nur „x von 6 gefunden“. Dashboard: Scores je Gruppe, dann „Rollen aufdecken“. | Jessica |
+| 15–20 | Mini-Input LLM-as-a-Judge | – | Folien | Jessica |
+| 20–32 | ② Gleicher Code, LLM als Judge | – | Prognose (H1 strict vs. lenient, H2 bester Judge inkl. „wir Menschen“) → das LLM bewertet `bank_account` in drei Haltungen → Vergleichstabelle Mensch vs. LLM mit drei Leitfragen → Schritt 3: die übrigen fünf Beispiele laufen im Hintergrund. Dashboard: Mensch vs. LLM, Heatmaps. | Eva |
+| 32–44 | ③ Paper vs. wir, Kritik | Heißer Stuhl (optional) | Ø Scores aus Chou (2026), Tabelle 6, neben unseren; dann „Und der Recall?“ – was das Paper ohne Ground Truth nicht sehen kann. | Alea |
+| 44–64 | ④ Prompt-Challenge | **AI Challenge** | Eigener Judge-Prompt, Probeläufe unbegrenzt, **max. 3 Einreichungen** über alle 6 Beispiele; +2 je Treffer, −1 je Fehlalarm. Live-Leaderboard. Die **Prompt-Galerie** (beste Einreichung je Gruppe) ist Teil der Challenge: Gewinnergruppe erklärt ihren Prompt, Plenum stimmt über die beste Erklärung ab. | Eva |
+| 64–70 | Auflösung, Prognose-Check, Nachher-Umfrage | Clicker | Ground Truth, Prognose vs. Ergebnis, Wiederholung der Umfrage. | Alea |
+| 70–75 | Blitzlicht + Ausblick | **Blitzlicht** | „Würde ich einen LLM-Judge in die CI einbauen – unter welcher Bedingung?“ | alle |
 
-Optional am Ende der gesamten 90 min (mit dem Team abstimmen): **Fünf-Finger-Methode** als Feedback zur Lehreinheit.
+**Zeitpuffer:** Wird es knapp, wird die Challenge auf 2 Einreichungen gekürzt (mündlich ansagen). Die Auflösung wird nicht gekürzt.
 
-**Zeitpuffer:** Wenn Auftrag 1 länger dauert, wird Auftrag 2 auf 2 Einreichungen gekürzt. Die Auswertung (Phase 32–40) wird nicht gekürzt, weil sie die Brücke zum Paper ist.
+Optional ganz am Ende (mit dem Team abstimmen): **Fünf-Finger-Methode** als Feedback zur Lehreinheit.
 
 ---
 
@@ -110,6 +116,9 @@ Hinweis: Z. 38 enthält den Tippfehler „Überisung“. Er ist **nicht** Teil d
 
 | Dashboard-Ansicht | Paper-Bezug | Inhalt |
 |---|---|---|
+| **① Mensch: gleicher Code, andere Rolle** | Gutachten erstellen | Score je Gruppe, Rollen erst verdeckt, dann aufgedeckt |
+| **② Mensch vs. LLM** | RQ2 + Ground Truth | `bank_account`: Score und Recall der Menschen je Rolle und der LLMs je Modell × Haltung |
+| **③ Paper vs. wir** | RQ2 | Ø Scores aus Chou (2026), Tabelle 6, neben unseren; darunter unser Recall |
 | **Heatmap Modell × Haltung: Ø Score** | RQ2 | Verschiebt die Haltung die Note? |
 | **Heatmap Modell × Haltung: Recall** | RQ2 + Ground Truth | Verschiebt die Haltung auch die Fehlerfindung? (Kernfrage) |
 | **Übereinstimmung der Judges** | RQ1 | Pro Defekt: welche Modelle haben ihn gefunden (Matrix Defekt × Modell); dazu Spearman-ρ der Scores zwischen Modellen |
@@ -118,7 +127,7 @@ Hinweis: Z. 38 enthält den Tippfehler „Überisung“. Er ist **nicht** Teil d
 | **QuixBugs vs. bank_account** | Zusatz (Validität) | Recall auf öffentlichen vs. unbekannten Code |
 | **Prognose vs. Ergebnis** | Didaktik | Was hat die Gruppe erwartet? |
 | **Leaderboard Prompt-Challenge** | Prompt Engineering | Punkte eigenes Modell + Punkte Referenzmodell |
-| **Prompt-Galerie** | Vernissage | Alle eingereichten Prompts mit Punkten |
+| **Prompt-Galerie** | AI Challenge | Beste Einreichung je Gruppe groß; alle Einreichungen unter „Mehr“ |
 
 **Erwartbare Diskussionsthesen** (für Moderation vorbereiten, nicht vorab verraten):
 - „strict“ senkt den Score deutlich, erhöht den Recall aber kaum → *Strenge ≠ Gründlichkeit*.
@@ -174,4 +183,4 @@ Die Adaption der Rollen-Prompts ist in `prompts/ADAPTATION.md` dokumentiert (Mat
 
 ### 5.4 Bekannte Lücke in den Wertungsregeln
 
-Nach Regel 3 und 5 (Konzept 8.6) zählt ein Treffer unabhängig von der Kategorie, während nicht zugeordnete `style`-Befunde neutral bleiben. Ein Challenge-Prompt wie „melde jede Zeile als style-Befund“ trifft damit alle Defekte ohne Abzug. Der Lint warnt davor nicht. Gegenmittel, falls nötig: in Auftrag 2 auch neutrale Befunde mit z. B. −0,5 werten (`POINTS` in `judge_lab/config.py` und `scoreboard/Code.gs`) oder die Regel in der Vernissage offenlegen.
+Nach Regel 3 und 5 (Konzept 8.6) zählt ein Treffer unabhängig von der Kategorie, während nicht zugeordnete `style`-Befunde neutral bleiben. Ein Challenge-Prompt wie „melde jede Zeile als style-Befund“ trifft damit alle Defekte ohne Abzug. Der Lint warnt davor nicht. Gegenmittel, falls nötig: in Auftrag 2 auch neutrale Befunde mit z. B. −0,5 werten (`POINTS` in `judge_lab/config.py` und `scoreboard/Code.gs`) oder die Regel bei der Prompt-Galerie offenlegen.
