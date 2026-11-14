@@ -85,7 +85,7 @@ def _kurzgrund(error: str) -> str:
 def _bewerte_snippet(client, prompt: str, snippet: Snippet, modell: str, einreichung: str) -> dict:
     ergebnis = _ergebnis(prompt, snippet.id, snippet.level or "", modell, einreichung)
     try:
-        messages = build_prompt(snippet, with_tests=False, custom_block=prompt)
+        messages = build_prompt(snippet, prompt)
         verdict, result, _ = judge(client, messages, snippet.line_count)
     except Exception as exc:  # noqa: BLE001 – Studierende sollen nie einen Traceback sehen
         return _fehlschlag(ergebnis, f"Unerwarteter Fehler ({type(exc).__name__}: {exc}).")

@@ -11,7 +11,7 @@ from judge_lab.snippets import get_snippet
 VALID = json.dumps({"findings": [{"line_start": 26, "category": "bug"}],
                     "scores": {"functional_correctness": 4, "reliability": 5, "maintainability": 6, "readability": 7}})
 SNIPPET = get_snippet("bank_account")
-MESSAGES = build_prompt(SNIPPET, custom_block="Sei streng.", with_tests=False)
+MESSAGES = build_prompt(SNIPPET, "Sei streng.")
 
 
 class ScriptedClient:

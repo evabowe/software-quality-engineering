@@ -100,7 +100,7 @@ finale = bewerte_alle(mein_prompt)
 sende(finale, runde=4)
 ```
 
-Vorlagen für Rollen-Prompts aus dem Paper liegen in `prompts/attitudes/` (`strict.md`, `objective.md`, `lenient.md`), ein Ausgangsprompt für die Challenge in `prompts/challenge_baseline.md`. Lesen geht so: `open(REPO_DIR + "/prompts/attitudes/strict.md").read()`.
+Vorlagen gibt es bewusst nicht: Die Studierenden schreiben jeden Prompt selbst. In Runde 2 liegt der Fokus darauf, dem Modell eine Rolle zu geben.
 
 ## 4. Die Snippets
 

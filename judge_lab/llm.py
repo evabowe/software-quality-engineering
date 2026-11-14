@@ -70,7 +70,7 @@ class ChatClient:
 
 # --- Mock -------------------------------------------------------------------
 
-_MOCK_SCORES = {"Chief Embedded Software Architect": 3, "Senior System Engineer": 5, "Technical Product Manager": 7}
+_MOCK_SCORE = 6
 _MOCK_BROKEN = {"qb_levenshtein"}  # liefert immer kaputtes JSON → parse_ok=False
 _MOCK_PROSE = {"qb_shunting_yard"}  # JSON in Prosa und Markdown-Fence → Extraktion
 
@@ -90,7 +90,6 @@ class MockClient:
         self._snippets = list(snippets) if snippets is not None else load_snippets()
 
     def complete(self, messages: list[dict]) -> LLMResult:
-        system = messages[0]["content"]
         task = next(m["content"] for m in messages if m["role"] == "user")
         snippet = next((s for s in self._snippets if s.numbered_code() in task), None)
         if snippet is None:
@@ -98,7 +97,7 @@ class MockClient:
         if snippet.id in _MOCK_BROKEN:
             return LLMResult('{"findings": [{"line_start": 3, "description": "Mock-Befund"', 0.0, len(task) // 4, 12)
 
-        score = next((v for role, v in _MOCK_SCORES.items() if role in system), 6)
+        score = _MOCK_SCORE
         accepted = {n for d in snippet.defects for n in range(d.accept_lines[0], d.accept_lines[1] + 1)}
         free_line = next(n for n in range(1, snippet.line_count + 1) if n not in accepted)
         hit = snippet.defects[0].lines[0]

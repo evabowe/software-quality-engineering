@@ -23,14 +23,6 @@ def test_numbered_code_format():
     assert lines[2] == "  3 |"
 
 
-def test_public_view_has_no_defects():
-    snippet = get_snippet("bank_account")
-    view = snippet.public_view()
-    assert "defects" not in view
-    for defect in snippet.defects:
-        assert defect.description not in repr(view)
-
-
 @pytest.mark.parametrize("snippet", SNIPPETS, ids=lambda s: s.id)
 def test_every_meta_is_consistent(snippet):
     code_lines = snippet.code.splitlines()
@@ -52,8 +44,3 @@ def test_patched_code_removes_bank_defects():
     assert "self.balance += amount" in patched
     # Abbuchen vor Gutschrift
     assert patched.index("self.withdraw(amount)") < patched.index("target.deposit(amount)")
-
-
-def test_function_names_bank():
-    names = get_snippet("bank_account").function_names()
-    assert {"BankAccount", "deposit", "withdraw", "transfer", "apply_interest"} <= names

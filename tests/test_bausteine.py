@@ -134,9 +134,9 @@ def test_bewerte_missing_dimension_keeps_judge_score(monkeypatch):
 def test_bewerte_uses_no_tests_in_prompt(monkeypatch):
     calls = []
     original = bausteine.build_prompt
-    monkeypatch.setattr(bausteine, "build_prompt", lambda *a, **kw: calls.append(kw) or original(*a, **kw))
+    monkeypatch.setattr(bausteine, "build_prompt", lambda *a, **kw: calls.append(original(*a, **kw)) or calls[-1])
     bewerte("Sei streng.", modell="mock")
-    assert calls == [{"with_tests": False, "custom_block": "Sei streng."}]
+    assert len(calls) == 1 and "def test_" not in calls[0][1]["content"]
 
 
 def test_bewerte_each_call_is_its_own_submission():

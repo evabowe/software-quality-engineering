@@ -16,16 +16,13 @@ DEFAULT_MODEL = "openai/gpt-6-luna"
 
 # --- Judge ------------------------------------------------------------------
 
-# Haltungen aus dem Paper; Dateinamen in prompts/attitudes/
-ATTITUDES = ("strict", "objective", "lenient")
-
 # Gewichte der Bewertungsdimensionen (prompts/scale_iso25010.md); Summe 1.0
 WEIGHTS = {"functional_correctness": 0.40, "reliability": 0.20, "maintainability": 0.25, "readability": 0.15}
 
 # Judge-Score: Punkte pro echtem Defekt bzw. Fehlalarm
 POINTS = {"tp": 2, "fp_bug": -1}
 
-TEMPERATURE = 0.0  # Reproduzierbarkeit; Abweichung zum Paper (siehe prompts/ADAPTATION.md)
+TEMPERATURE = 0.0  # Reproduzierbarkeit (Reasoning-Modelle ignorieren den Wert)
 # Reasoning-Modelle wie GPT-6 Luna zählen ihre Denk-Tokens mit (gemessen bis ~1900); die Antwort braucht
 # bis ~2500 mehr. Kosten bei 16000: ≤ 0,01 $ pro Aufruf.
 MAX_TOKENS = 16000

@@ -12,4 +12,4 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[de
 .venv/bin/python -m pytest
 ```
 
-Lizenz: MIT ([LICENSE](LICENSE)). Drittinhalte (QuixBugs, Prompts aus ai-as-a-judge): [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), Anpassungen der Prompts: [prompts/ADAPTATION.md](prompts/ADAPTATION.md).
+Lizenz: MIT ([LICENSE](LICENSE)). Drittinhalte (QuixBugs): [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

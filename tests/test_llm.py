@@ -101,10 +101,10 @@ def test_make_client_missing_key():
         make_client("openai/gpt-6-luna", "")
 
 
-def _mock_answer(snippet_id, attitude="objective"):
+def _mock_answer(snippet_id):
     snippet = get_snippet(snippet_id)
     client = MockClient(load_snippets())
-    return snippet, client.complete(build_prompt(snippet, attitude=attitude, with_tests=False))
+    return snippet, client.complete(build_prompt(snippet, "Sei streng."))
 
 
 def test_mock_deterministic_and_parsable():
@@ -114,14 +114,7 @@ def test_mock_deterministic_and_parsable():
     verdict = parse_verdict(first.text, snippet.line_count)
     result = match_findings(verdict.findings, snippet.defects)
     assert result.tp >= 1 and result.fp >= 1
-
-
-def test_mock_scores_depend_on_attitude():
-    snippet, strict = _mock_answer("qb_quicksort", "strict")
-    _, lenient = _mock_answer("qb_quicksort", "lenient")
-    strict_scores = parse_verdict(strict.text, snippet.line_count).scores
-    lenient_scores = parse_verdict(lenient.text, snippet.line_count).scores
-    assert strict_scores["functional_correctness"] < lenient_scores["functional_correctness"]
+    assert verdict.scores["functional_correctness"] == 6
 
 
 def test_mock_wraps_shunting_yard_in_prose():
@@ -138,6 +131,6 @@ def test_mock_broken_json_for_levenshtein():
 
 def test_mock_descriptions_reveal_no_ground_truth():
     for snippet in load_snippets():
-        answer = MockClient(load_snippets()).complete(build_prompt(snippet, attitude="strict", with_tests=True))
+        answer = MockClient(load_snippets()).complete(build_prompt(snippet, "Sei streng."))
         for defect in snippet.defects:
             assert defect.description not in answer.text
