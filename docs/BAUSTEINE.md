@@ -11,25 +11,28 @@ Für dein Notebook gibt es genau vier Funktionen:
 
 Alles andere läuft im Hintergrund: OpenRouter, Bewertungsskala, Antwortformat, Abgleich mit den bekannten Fehlern, Google Sheet. Bei Fehlern sehen die Studierenden eine kurze deutsche Meldung, nie einen Traceback.
 
-## 1. Setup-Zelle (an den Anfang des Notebooks kopieren)
+## 1. Einrichtung (lokal auf dem Rechner der Studierenden)
 
-```python
-#@title ▶ Start – hier klicken
-import os, subprocess, sys
+Einmal pro Rechner, im Terminal (Python ≥ 3.10):
 
-REPO_URL = "https://github.com/evabowe/software-quality-engineering"
-REPO_DIR = "/content/software-quality-engineering"
-if not os.path.isdir(REPO_DIR):
-    subprocess.run(["git", "clone", "-q", "--depth", "1", REPO_URL, REPO_DIR], check=True)
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", REPO_DIR], check=True)
-if REPO_DIR not in sys.path:
-    sys.path.insert(0, REPO_DIR)
-
-from judge_lab import verbinde, bewerte, bewerte_alle, sende
-print("✅ Bereit")
+```bash
+git clone https://github.com/evabowe/software-quality-engineering
+cd software-quality-engineering
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e . jupyterlab
+jupyter lab notebooks/
 ```
 
-Die Zelle lässt sich mehrfach ausführen, geklont und installiert wird nur beim ersten Mal. Fragt Colab „Dieses Notebook wurde nicht von Google erstellt“, auf **Trotzdem ausführen** klicken.
+Das Notebook gehört in den Ordner `notebooks/` des Repos. Die Snippets und Prompt-Bausteine liegen im Repo, deshalb reicht ein `pip install` ohne Klon nicht. In VS Code genügt `pip install -e . ipykernel`, dann `.venv` als Kernel wählen.
+
+Erste Code-Zelle im Notebook:
+
+```python
+from judge_lab import verbinde, bewerte, bewerte_alle, sende
+```
+
+Kommt `ModuleNotFoundError: judge_lab`, läuft das Notebook nicht im Kernel der `.venv`.
 
 ## 2. Die Funktionen
 

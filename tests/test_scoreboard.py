@@ -139,3 +139,8 @@ def test_replay_without_backup_does_nothing(tmp_path):
 def test_unknown_field_rejected(tmp_path):
     with pytest.raises(ValueError, match="unbekannt"):
         Scoreboard("", "", tmp_path / "backup.csv").submit([record(colour="blue")])
+
+
+def test_default_backup_is_in_working_directory(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    assert Scoreboard("", "").backup_path == tmp_path / "scoreboard_backup.csv"

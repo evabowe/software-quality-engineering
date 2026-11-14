@@ -36,17 +36,11 @@ RECORD_FIELDS = (
 )
 
 
-def default_backup_path() -> Path:
-    """In Colab unter /content, sonst im aktuellen Verzeichnis."""
-    colab = Path("/content")
-    return (colab if colab.is_dir() else Path.cwd()) / "scoreboard_backup.csv"
-
-
 class Scoreboard:
     def __init__(self, url: str, token: str, backup_path: Path | None = None, *, post=requests.post):
         self.url = url
         self.token = token
-        self.backup_path = Path(backup_path) if backup_path else default_backup_path()
+        self.backup_path = Path(backup_path) if backup_path else Path.cwd() / "scoreboard_backup.csv"
         self._post = post
         self._lock = threading.Lock()
         self.last_error = ""  # Meldung des Servers, wenn er zuletzt abgelehnt hat (z. B. falsches Token)
