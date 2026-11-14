@@ -26,9 +26,11 @@ Das Dashboard ist eine Apps-Script-Web-App an einem privaten Google Sheet. `send
 3. Speichern, dann **Bereitstellen → Bereitstellungen verwalten → Bearbeiten → Version: Neue Version → Bereitstellen.** Die URL bleibt gleich. Ohne neue Version läuft unter der URL weiter der alte Stand.
 4. Nur bei einer *neuen* Bereitstellung ändert sich die URL. Dann `SCOREBOARD_URL` in `judge_lab/config.py` anpassen, mit *Ausführen als: Ich* und *Zugriff: Jeder*.
 
-**Schnelltest im Terminal** (`URL` und `TOKEN` aus `config.py`):
+**Schnelltest im Terminal** (im Repo-Ordner; `URL` und `TOKEN` kommen aus `config.py`):
 
 ```bash
+URL=$(.venv/bin/python -c "from judge_lab.config import SCOREBOARD_URL as u; print(u)")
+TOKEN=$(.venv/bin/python -c "from judge_lab.config import SCOREBOARD_TOKEN as t; print(t)")
 curl -L "$URL" -H "Content-Type: application/json" -d '{"token":"'$TOKEN'","records":[{"timestamp":"2026-11-14T10:00:00+00:00","run_id":"curl-1","gruppe":"Gruppe 1","runde":1,"snippet":"bank_account","modell":"curl","prompt":"Test","code_score":5,"judge_score":2,"einreichung":"curl"}]}'
 # → {"status":"ok","records":1}
 curl -L "$URL?format=json"                                   # → aggregierte Kacheln
