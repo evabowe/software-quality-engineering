@@ -1,12 +1,15 @@
 """Tests für die vier Bausteine verbinde, bewerte, bewerte_alle und sende."""
 
 import json
+from datetime import datetime
 
 import pytest
+import requests
 
 from judge_lab import bausteine
-from judge_lab.bausteine import bewerte, bewerte_alle
+from judge_lab.bausteine import bewerte, bewerte_alle, sende
 from judge_lab.llm import ConfigError, LLMResult
+from judge_lab.scoreboard import RECORD_FIELDS, Scoreboard
 
 KEYS = {"code_score", "judge_score", "snippet", "komplexitaet", "modell", "prompt", "gruppe", "einreichung", "fehler"}
 
@@ -163,10 +166,131 @@ def test_bewerte_alle_without_verbinde_gives_hint():
     assert len(rs) == 5 and all("verbinde" in r["fehler"] for r in rs)
 
 
+# --- sende -------------------------------------------------------------------
+
+
+def ergebnis(**overrides):
+    base = {"code_score": 5.2, "judge_score": 3, "snippet": "bank_account", "komplexitaet": "",
+            "modell": "openai/gpt-6-luna", "prompt": "Sei streng.", "gruppe": "Gruppe 2",
+            "einreichung": "e1", "fehler": None}
+    return {**base, **overrides}
+
+
+def fuenf(**overrides):
+    namen = ["qb_bitcount", "qb_quicksort", "qb_levenshtein", "qb_shunting_yard", "qb_next_permutation"]
+    return [ergebnis(snippet=n, komplexitaet=f"L{i + 1}", **overrides) for i, n in enumerate(namen)]
+
+
+class FakeBoard:
+    def __init__(self, ok=True):
+        self.ok, self.calls = ok, []
+
+    def replay_backup(self):
+        return 0
+
+    def submit(self, records):
+        self.calls.append(records)
+        return self.ok
+
+
+@pytest.fixture
+def board(monkeypatch):
+    fake = FakeBoard()
+    monkeypatch.setattr(bausteine, "_scoreboard", lambda: fake)
+    return fake
+
+
+def test_sende_round2_single_result(board, capsys):
+    assert sende(ergebnis(), runde=2) is True
+    [rows] = board.calls
+    assert len(rows) == 1 and tuple(rows[0]) == RECORD_FIELDS
+    row = rows[0]
+    assert (row["runde"], row["gruppe"], row["snippet"], row["code_score"], row["judge_score"]) == \
+        (2, "Gruppe 2", "bank_account", 5.2, 3)
+    assert len(row["run_id"]) == 32
+    assert datetime.fromisoformat(row["timestamp"]).utcoffset().total_seconds() == 0
+    assert "gesendet" in capsys.readouterr().out
+
+
+def test_sende_round4_list_sends_five_in_one_call(board):
+    assert sende(fuenf(), runde=4) is True
+    assert len(board.calls) == 1 and len(board.calls[0]) == 5
+    assert len({r["run_id"] for r in board.calls[0]}) == 5
+    assert {r["einreichung"] for r in board.calls[0]} == {"e1"}
+
+
+def test_sende_list_in_round1_is_rejected(board, capsys):
+    assert sende(fuenf(), runde=1) is False
+    assert board.calls == [] and "bewerte(" in capsys.readouterr().out
+
+
+def test_sende_single_in_round3_is_rejected(board, capsys):
+    assert sende(ergebnis(), runde=3) is False
+    assert board.calls == [] and "bewerte_alle" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("runde", [0, 5, "2", True, None])
+def test_sende_invalid_round(board, capsys, runde):
+    assert sende(ergebnis(), runde=runde) is False
+    assert board.calls == [] and "1–4" in capsys.readouterr().out
+
+
+def test_sende_skips_failed_and_reports(board, capsys):
+    rs = fuenf()
+    rs[2] = ergebnis(snippet="qb_levenshtein", komplexitaet="L3", code_score=None, judge_score=None,
+                     fehler="Die Antwort des Modells war nicht lesbar")
+    assert sende(rs, runde=3) is True
+    assert [r["snippet"] for r in board.calls[0]] == ["qb_bitcount", "qb_quicksort", "qb_shunting_yard",
+                                                      "qb_next_permutation"]
+    assert "qb_levenshtein" in capsys.readouterr().out
+
+
+def test_sende_only_failed_sends_nothing(board, capsys):
+    assert sende(ergebnis(fehler="kaputt", code_score=None, judge_score=None), runde=1) is False
+    assert board.calls == []
+
+
+def test_sende_skips_mock(board, capsys):
+    assert sende(ergebnis(modell="mock"), runde=1) is False
+    assert board.calls == [] and "Mock-Ergebnisse gehen nicht ans Dashboard" in capsys.readouterr().out
+
+
+def test_sende_offline_message(monkeypatch, capsys):
+    monkeypatch.setattr(bausteine, "_scoreboard", lambda: FakeBoard(ok=False))
+    assert sende(ergebnis(), runde=1) is False
+    assert "lokal gesichert" in capsys.readouterr().out
+
+
+def test_sende_replays_backup_first(monkeypatch, tmp_path):
+    sent = []
+    state = {"online": False}
+
+    def post(url, json=None, timeout=None):
+        if not state["online"]:
+            raise requests.ConnectionError("offline")
+        sent.append(json["records"])
+
+        class Ok:
+            status_code = 200
+
+            def json(self):
+                return {"status": "ok"}
+
+        return Ok()
+
+    real = Scoreboard("https://example.test/exec", "tok", tmp_path / "backup.csv", post=post)
+    monkeypatch.setattr(bausteine, "_scoreboard", lambda: real)
+    assert sende(fuenf(), runde=4) is False
+    assert (tmp_path / "backup.csv").exists()
+    state["online"] = True
+    assert sende(ergebnis(), runde=1) is True
+    assert not (tmp_path / "backup.csv").exists()
+    assert [len(batch) for batch in sent] == [5, 1]
+
+
 # --- öffentliche Schnittstelle ------------------------------------------------
 
 
-@pytest.mark.xfail(reason="sende folgt in Task 4", strict=True)
 def test_public_api_is_exactly_four():
     import judge_lab
 

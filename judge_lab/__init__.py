@@ -5,6 +5,6 @@
 Anleitung: docs/BAUSTEINE.md
 """
 
-from judge_lab.bausteine import bewerte, bewerte_alle, verbinde
+from judge_lab.bausteine import bewerte, bewerte_alle, sende, verbinde
 
-__all__ = ["verbinde", "bewerte", "bewerte_alle"]
+__all__ = ["verbinde", "bewerte", "bewerte_alle", "sende"]

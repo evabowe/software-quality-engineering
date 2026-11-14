@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
+from functools import lru_cache
 
 from judge_lab import join as _join_module
 from judge_lab.config import CONCURRENCY, DEFAULT_MODEL, SCOREBOARD_TOKEN, SCOREBOARD_URL
@@ -16,8 +18,11 @@ from judge_lab.llm import ConfigError, make_client
 from judge_lab.matching import match_findings
 from judge_lab.prompts import build_prompt
 from judge_lab.runner import judge
+from judge_lab.scoreboard import RECORD_FIELDS, Scoreboard
 from judge_lab.scoring import challenge_points, weighted_score
 from judge_lab.snippets import Snippet, load_snippets
+
+RUNDEN = {1: "Frei ausprobieren", 2: "Rollen vergleichen", 3: "Komplexität vergleichen", 4: "AI Challenge"}
 
 # Gruppe und Key nach verbinde(); gilt für alle weiteren Aufrufe im Notebook.
 _ZUSTAND = {"gruppe": "", "key": ""}
@@ -141,3 +146,55 @@ def bewerte_alle(prompt: str, modell: str = DEFAULT_MODEL) -> list[dict]:
             print(f"{fertig}/{len(ziele)} fertig", end="\r")
     print()
     return [ergebnisse[s.id] for s in ziele]
+
+
+# --- sende --------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _scoreboard() -> Scoreboard:
+    return Scoreboard(SCOREBOARD_URL, SCOREBOARD_TOKEN)
+
+
+def _zeile(ergebnis: dict, runde: int) -> dict:
+    zeile = {feld: ergebnis.get(feld, "") for feld in RECORD_FIELDS}
+    zeile.update(
+        timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        run_id=uuid.uuid4().hex,
+        runde=runde,
+    )
+    return {feld: ("" if wert is None else wert) for feld, wert in zeile.items()}
+
+
+def sende(ergebnis: dict | list[dict], runde: int) -> bool:
+    """Schickt das Ergebnis von bewerte (Runde 1–2) bzw. bewerte_alle (Runde 3–4) ans Dashboard."""
+    if type(runde) is not int or runde not in RUNDEN:
+        print("❌ Bitte eine Runde von 1–4 angeben, z. B. sende(ergebnis, runde=2).")
+        return False
+    liste = isinstance(ergebnis, list)
+    if runde in (1, 2) and liste:
+        print(f"❌ Für Runde {runde} bitte das Ergebnis von bewerte(…) senden, nicht die Liste von bewerte_alle.")
+        return False
+    if runde in (3, 4) and not liste:
+        print(f"❌ Für Runde {runde} bitte das Ergebnis von bewerte_alle(…) senden.")
+        return False
+    ergebnisse = ergebnis if liste else [ergebnis]
+    if any(e.get("modell") == "mock" for e in ergebnisse):
+        print("ℹ️ Mock-Ergebnisse gehen nicht ans Dashboard.")
+        return False
+    fehlerhaft = [e for e in ergebnisse if e.get("fehler")]
+    if fehlerhaft:
+        namen = ", ".join(e.get("snippet", "?") for e in fehlerhaft)
+        print(f"⚠️ Nicht gesendet, weil die Bewertung fehlgeschlagen ist: {namen}")
+    zeilen = [_zeile(e, runde) for e in ergebnisse if not e.get("fehler")]
+    if not zeilen:
+        print("❌ Nichts zu senden.")
+        return False
+
+    board = _scoreboard()
+    board.replay_backup()
+    if board.submit(zeilen):
+        print(f"✅ {len(zeilen)} Ergebnis(se) gesendet – das Dashboard zeigt es in ein paar Sekunden.")
+        return True
+    print("⚠️ Dashboard nicht erreichbar – lokal gesichert, wird beim nächsten Senden nachgeholt.")
+    return False
