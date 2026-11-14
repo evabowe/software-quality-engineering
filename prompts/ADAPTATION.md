@@ -39,6 +39,6 @@ Block 1 und 2 bilden die System-Message, Block 3 und 4 die User-Message.
 
 | Paper | Hands-on | Begründung |
 |---|---|---|
-| 4 Judges, darunter Doubao | 3 Modelle über OpenRouter + 1 kleines lokales Modell (Ollama) | Doubao ist über OpenRouter voraussichtlich nicht verfügbar; das lokale Modell zeigt den Trade-off Datenschutz vs. Qualität. |
+| 4 Judges, darunter Doubao | ein frei wählbares Modell über OpenRouter, Standard `openai/gpt-6-luna` | Die Gruppen vergleichen Prompts, nicht Modelle; ein günstiges Standardmodell hält die Kosten klein. |
 | Temperatur nicht 0 | Temperatur 0 | Reproduzierbarkeit in einer kurzen Live-Session. |
-| keine Ground Truth | Ground Truth mit Recall und False Positives | Kern unserer Erweiterung. |
+| keine Ground Truth | Ground Truth: Judge-Score = 2 × gefundene Defekte − 1 × Fehlalarme | Kern unserer Erweiterung. |
