@@ -1,8 +1,8 @@
-"""Übertragung der Läufe an das Scoreboard (Google Apps Script) mit lokaler CSV-Sicherung.
+"""Übertragung der Ergebnisse an das Scoreboard (Google Apps Script) mit lokaler CSV-Sicherung.
 
-Jeder Lauf wird sofort gesendet (Live-Effekt am Beamer). Ist das Scoreboard
-nicht erreichbar, landet der Lauf in einer CSV-Datei und geht nicht verloren;
-``replay_backup`` sendet ihn später nach.
+``sende`` übergibt alle Zeilen eines Aufrufs in einem Request. Ist das Scoreboard
+nicht erreichbar, landen sie in einer CSV-Datei und gehen nicht verloren;
+``replay_backup`` sendet sie später nach.
 """
 
 from __future__ import annotations
@@ -15,42 +15,20 @@ import requests
 
 from judge_lab.config import SCOREBOARD_RETRIES, SCOREBOARD_TIMEOUT
 
-# Eine Zeile pro LLM-Lauf (Konzept 8.8). Dieselbe Reihenfolge steht als FIELDS in scoreboard/Code.gs.
+# Eine Zeile pro bewertetem Snippet. Dieselbe Reihenfolge steht als FIELDS in scoreboard/Code.gs
+# (dort zusätzlich session_id, das Apps Script beim Empfang setzt).
 RECORD_FIELDS = (
     "timestamp",
-    "run_id",  # eindeutig je Lauf; das Dashboard entfernt doppelt gesendete Läufe
-    "session_id",
-    "group",
-    "phase",  # human | prognosis | a1 | a2_probe | a2_submit | reference
-    "model_key",
-    "model_id",
-    "attitude",
-    "snippet_id",
-    "complexity_level",
-    "with_tests",
-    "prompt_hash",
-    "prompt_text",  # nur bei a2_submit
-    "submission_no",
-    "submission_id",  # eindeutig je Einreichung (Gruppe + Referenz); der Zähler allein ist es nicht
-    "tp",
-    "fp",
-    "neutral",
-    "n_defects",
-    "recall",
-    "precision",
-    "weighted_score",
-    "llm_overall_score",
-    "scores_json",
-    "found_defect_ids",
-    "findings_json",
-    "parse_ok",
-    "error",
-    "latency_s",
-    "tokens_in",
-    "tokens_out",
-    "prediction_best_model",
-    "prediction_strict_vs_lenient",
-    "notebook_version",
+    "run_id",  # eindeutig je Zeile; das Dashboard entfernt doppelt gesendete Zeilen
+    "gruppe",
+    "runde",  # 1 frei · 2 Rollen · 3 Komplexität · 4 AI Challenge
+    "snippet",
+    "komplexitaet",  # L1–L5 oder leer
+    "modell",
+    "prompt",
+    "code_score",
+    "judge_score",
+    "einreichung",  # gleiche ID für alle Zeilen eines bewerte_alle-Aufrufs
 )
 
 
@@ -68,44 +46,46 @@ class Scoreboard:
         self._post = post
         self._lock = threading.Lock()
 
-    def submit(self, record: dict) -> bool:
-        """True, wenn das Scoreboard den Lauf angenommen hat; sonst wird er in der CSV gesichert."""
-        unknown = set(record) - set(RECORD_FIELDS)
-        if unknown:
-            raise ValueError(f"Datensatz enthält unbekannte Felder: {sorted(unknown)}")
-        if self._send(record):
+    def submit(self, records: list[dict]) -> bool:
+        """True, wenn das Scoreboard die Zeilen angenommen hat; sonst werden alle in der CSV gesichert."""
+        for record in records:
+            unknown = set(record) - set(RECORD_FIELDS)
+            if unknown:
+                raise ValueError(f"Datensatz enthält unbekannte Felder: {sorted(unknown)}")
+        if self._send(records):
             return True
-        self._append_backup(record)
+        with self._lock:
+            self._write_rows(records, mode="a")
         return False
 
     def replay_backup(self) -> int:
-        """Sendet gesicherte Läufe erneut; erfolgreich gesendete verschwinden aus der CSV."""
+        """Sendet alle gesicherten Zeilen in einem Request; bei Erfolg verschwindet die CSV."""
         with self._lock:
             if not self.backup_path.exists():
                 return 0
             with self.backup_path.open(newline="", encoding="utf-8") as handle:
                 pending = list(csv.DictReader(handle))
-            failed = [row for row in pending if not self._send(row)]
-            self._write_rows(failed, mode="w")
-        return len(pending) - len(failed)
+            if not pending:
+                self.backup_path.unlink()
+                return 0
+            if not self._send(pending):
+                return 0
+            self.backup_path.unlink()
+        return len(pending)
 
-    def _send(self, record: dict) -> bool:
+    def _send(self, records: list[dict]) -> bool:
         if not self.url:
             return False
         for _ in range(1 + SCOREBOARD_RETRIES):
             try:
                 response = self._post(
-                    self.url, json={"token": self.token, "record": record}, timeout=SCOREBOARD_TIMEOUT
+                    self.url, json={"token": self.token, "records": records}, timeout=SCOREBOARD_TIMEOUT
                 )
                 if response.status_code == 200 and response.json().get("status") == "ok":
                     return True
             except (requests.RequestException, ValueError):
                 pass
         return False
-
-    def _append_backup(self, record: dict) -> None:
-        with self._lock:
-            self._write_rows([record], mode="a")
 
     def _write_rows(self, records: list[dict], mode: str) -> None:
         write_header = mode == "w" or not self.backup_path.exists()

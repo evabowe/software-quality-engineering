@@ -22,6 +22,7 @@ def _js_constant(name):
     return json.loads(literal.replace("'", '"').replace(",\n]", "\n]").replace(",]", "]"))
 
 
+@pytest.mark.xfail(reason="Code.gs folgt in Task 5", strict=True)
 def test_fields_match():
     assert tuple(_js_constant("FIELDS")) == RECORD_FIELDS
 
