@@ -166,6 +166,16 @@ def test_bewerte_alle_without_verbinde_gives_hint():
     assert len(rs) == 5 and all("verbinde" in r["fehler"] for r in rs)
 
 
+@pytest.mark.parametrize("antwort", [
+    '{"findings": [{"line_start": 3, "line_end": 3, "category": "bug"}, {"line_start": ',  # bei MAX_TOKENS abgeschnitten
+    '{"error": "I cannot help with that."}',                                                 # Ablehnung im JSON-Modus
+])
+def test_bewerte_answer_without_findings_and_scores_is_unreadable(monkeypatch, antwort):
+    use_client(monkeypatch, FakeClient(antwort))
+    r = bewerte("x")
+    assert r["judge_score"] is None and r["code_score"] is None and "nicht lesbar" in r["fehler"]
+
+
 # --- sende -------------------------------------------------------------------
 
 
@@ -183,7 +193,7 @@ def fuenf(**overrides):
 
 class FakeBoard:
     def __init__(self, ok=True):
-        self.ok, self.calls = ok, []
+        self.ok, self.calls, self.last_error = ok, [], ""
 
     def replay_backup(self):
         return 0
@@ -286,6 +296,41 @@ def test_sende_replays_backup_first(monkeypatch, tmp_path):
     assert sende(ergebnis(), runde=1) is True
     assert not (tmp_path / "backup.csv").exists()
     assert [len(batch) for batch in sent] == [5, 1]
+
+
+def test_sende_twice_gives_same_run_ids(board):
+    rs = fuenf()
+    sende(rs, runde=4)
+    sende(rs, runde=4)
+    first, second = board.calls
+    assert [r["run_id"] for r in first] == [r["run_id"] for r in second]
+    assert len({r["run_id"] for r in first}) == 5
+
+
+def test_sende_same_result_other_round_gets_other_run_id(board):
+    sende(ergebnis(), runde=1)
+    sende(ergebnis(), runde=2)
+    assert board.calls[0][0]["run_id"] != board.calls[1][0]["run_id"]
+
+
+@pytest.mark.parametrize("falsch", [None, "text", [None], [ergebnis(), 3]])
+def test_sende_wrong_type_gives_hint_not_traceback(board, capsys, falsch):
+    runde = 3 if isinstance(falsch, list) else 1
+    assert sende(falsch, runde=runde) is False
+    assert board.calls == [] and "bewerte" in capsys.readouterr().out
+
+
+def test_sende_shows_server_refusal(monkeypatch, capsys, tmp_path):
+    class Refused:
+        status_code = 200
+
+        def json(self):
+            return {"status": "error", "message": "Tab runs hat eine alte Kopfzeile – bitte in runs_alt umbenennen"}
+
+    real = Scoreboard("https://example.test/exec", "tok", tmp_path / "backup.csv", post=lambda *a, **k: Refused())
+    monkeypatch.setattr(bausteine, "_scoreboard", lambda: real)
+    assert sende(ergebnis(), runde=1) is False
+    assert "alte Kopfzeile" in capsys.readouterr().out
 
 
 # --- öffentliche Schnittstelle ------------------------------------------------

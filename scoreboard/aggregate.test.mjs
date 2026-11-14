@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { aggregate, cellValue, joinLookup, FIELDS } = require("./Code.gs");
+const { aggregate, cellValue, joinLookup, rowValues, FIELDS } = require("./Code.gs");
 
 const KEYS = [
   { code: "AAAA", group: "Gruppe 1", openrouter_key: "sk-1", active: true },
@@ -68,6 +68,35 @@ test("doppelte run_id zählt einmal", () => {
   const total = aggregate(rows, KEYS, [], "live").rounds["4"]["Gruppe 1"];
   assert.equal(total.n, 5);
   assert.equal(total.judge_score, 0 + 1 + 2 + 3 + 4);
+});
+
+test("dieselbe Einreichung zweimal gesendet (neue run_ids) zählt in Runde 3 und 4 einmal", () => {
+  const once = curve("Gruppe 1", "x", "2026-11-14T10:00:00+00:00", () => ({ runde: 4 }));
+  const again = curve("Gruppe 1", "x", "2026-11-14T10:01:00+00:00", () => ({ runde: 4 }));
+  const data = aggregate(once.concat(again), KEYS, [], "live");
+  assert.equal(data.rounds["4"]["Gruppe 1"].n, 5);
+  assert.equal(data.rounds["4"]["Gruppe 1"].judge_score, 10);
+  const r3 = curve("Gruppe 2", "y", "2026-11-14T10:00:00+00:00", () => ({ runde: 3 }))
+    .concat(curve("Gruppe 2", "y", "2026-11-14T10:01:00+00:00", () => ({ runde: 3 })));
+  assert.equal(aggregate(r3, KEYS, [], "live").rounds["3"]["Gruppe 2"].points.length, 5);
+});
+
+test("rowValues: Zahlenfelder als Zahl, alle anderen Texte als Text (kein Datum, keine Formel)", () => {
+  const record = { timestamp: "2026-11-14T10:00:00+00:00", run_id: "abc", gruppe: "Gruppe 1", runde: "4",
+                   snippet: "qb_bitcount", komplexitaet: "L1", modell: "m", prompt: "TRUE", code_score: "5.2",
+                   judge_score: "-1", einreichung: "1/2" };
+  const values = rowValues(record, "live");
+  const at = (f) => values[FIELDS.indexOf(f)];
+  assert.equal(values.length, FIELDS.length);
+  assert.equal(at("runde"), 4);
+  assert.equal(at("code_score"), 5.2);
+  assert.equal(at("judge_score"), -1);
+  assert.equal(at("timestamp"), "'2026-11-14T10:00:00+00:00");
+  assert.equal(at("prompt"), "'TRUE");
+  assert.equal(at("einreichung"), "'1/2");
+  assert.equal(at("session_id"), "'live");
+  assert.equal(rowValues({ code_score: "" }, "live")[FIELDS.indexOf("code_score")], "");
+  assert.equal(rowValues({}, "live")[FIELDS.indexOf("prompt")], "");
 });
 
 test("andere session_id wird ignoriert", () => {

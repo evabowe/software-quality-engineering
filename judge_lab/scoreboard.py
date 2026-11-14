@@ -45,6 +45,7 @@ class Scoreboard:
         self.backup_path = Path(backup_path) if backup_path else default_backup_path()
         self._post = post
         self._lock = threading.Lock()
+        self.last_error = ""  # Meldung des Servers, wenn er zuletzt abgelehnt hat (z. B. falsches Token)
 
     def submit(self, records: list[dict]) -> bool:
         """True, wenn das Scoreboard die Zeilen angenommen hat; sonst werden alle in der CSV gesichert."""
@@ -74,6 +75,7 @@ class Scoreboard:
         return len(pending)
 
     def _send(self, records: list[dict]) -> bool:
+        self.last_error = ""
         if not self.url:
             return False
         for _ in range(1 + SCOREBOARD_RETRIES):
@@ -81,8 +83,12 @@ class Scoreboard:
                 response = self._post(
                     self.url, json={"token": self.token, "records": records}, timeout=SCOREBOARD_TIMEOUT
                 )
-                if response.status_code == 200 and response.json().get("status") == "ok":
-                    return True
+                if response.status_code == 200:
+                    answer = response.json()
+                    if answer.get("status") == "ok":
+                        self.last_error = ""
+                        return True
+                    self.last_error = str(answer.get("message") or "unbekannter Fehler")
             except (requests.RequestException, ValueError):
                 pass
         return False

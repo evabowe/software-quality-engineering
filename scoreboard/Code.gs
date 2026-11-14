@@ -30,6 +30,7 @@ const FIELDS = [
 ];
 
 const ROUNDS = ["1", "2", "3", "4"];
+const NUMBER_FIELDS = ["runde", "code_score", "judge_score"];
 
 // --- Hilfsfunktionen ----------------------------------------------------------
 
@@ -69,6 +70,22 @@ function isoTime(value) {
   return t ? new Date(t).toISOString() : "";
 }
 
+/**
+ * Zeile für setValues. Zahlenfelder als Zahl (auch aus der CSV-Sicherung, die nur Text kennt);
+ * alles andere als Text mit vorangestelltem ' – sonst macht ein deutsches Sheet aus „5.2“ ein Datum,
+ * aus einem ISO-Zeitstempel eine Ortszeit und aus „=…“ eine Formel.
+ */
+function rowValues(record, sessionId) {
+  return FIELDS.map((f) => {
+    const value = f === "session_id" ? sessionId : record[f];
+    if (NUMBER_FIELDS.indexOf(f) >= 0) {
+      const n = num(value);
+      return n === null ? "" : n;
+    }
+    return value === null || value === undefined || value === "" ? "" : "'" + String(value);
+  });
+}
+
 /** Passt eine vorhandene Kopfzeile im Tab runs zu FIELDS? (Leerer Tab: ja) */
 function headerMatches(header) {
   if (!header || !header.length || header.every((h) => h === "")) return true;
@@ -83,9 +100,15 @@ function tile(rows) {
            snippet: String(r.snippet), modell: String(r.modell), timestamp: isoTime(r.timestamp) };
 }
 
+/** Alle Zeilen der neuesten Einreichung, je Snippet nur die neueste (doppelt gesendet zählt einmal). */
 function latestSubmission(rows) {
   const newest = latest(rows);
-  return rows.filter((r) => String(r.einreichung) === String(newest.einreichung));
+  const bySnippet = {};
+  rows.filter((r) => String(r.einreichung) === String(newest.einreichung)).forEach((r) => {
+    const key = String(r.snippet);
+    if (!bySnippet[key] || timeMs(r.timestamp) >= timeMs(bySnippet[key].timestamp)) bySnippet[key] = r;
+  });
+  return Object.keys(bySnippet).map((k) => bySnippet[k]);
 }
 
 function curveTile(rows) {
@@ -232,8 +255,7 @@ function doPost(e) {
     if (!headerMatches(header)) {
       return json_({ status: "error", message: "Tab runs hat eine alte Kopfzeile – bitte in runs_alt umbenennen" });
     }
-    const values = body.records.map((record) =>
-      FIELDS.map((f) => (f === "session_id" ? cellValue(config.session_id || "") : cellValue(record[f]))));
+    const values = body.records.map((record) => rowValues(record, config.session_id || ""));
     runs.getRange(runs.getLastRow() + 1, 1, values.length, FIELDS.length).setValues(values);
     return json_({ status: "ok", records: values.length });
   } finally {
@@ -264,4 +286,4 @@ function doGet(e) {
 }
 
 // Für die Tests mit Node; in Apps Script ist `module` nicht definiert.
-if (typeof module !== "undefined") module.exports = { aggregate, cellValue, headerMatches, joinLookup, normalizeCode, FIELDS };
+if (typeof module !== "undefined") module.exports = { aggregate, cellValue, headerMatches, joinLookup, normalizeCode, rowValues, FIELDS };

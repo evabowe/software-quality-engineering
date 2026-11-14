@@ -48,6 +48,8 @@ curl -L "$URL?action=join&code=<CODE>&token=$TOKEN"          # → {"status":"ok
    - [ ] **Taste 3:** Die Kachel zeigt ein Diagramm mit L1–L5, blau für den Code-Score (links), orange für den Judge-Score (rechts).
    - [ ] **Taste 4:** Die Kachel zeigt Summe und Durchschnitt, „5/5 Snippets“ und ist als 🏆 vorne hervorgehoben (einzige Gruppe).
    - [ ] Ein Klick auf einen Prompt klappt den vollen Text auf.
+   - [ ] Im Tab `runs` ist `code_score` eine Zahl (z. B. `5,2`, kein Datum), `timestamp` und `prompt` stehen als Text ohne sichtbares `'`.
+   - [ ] Die Zelle von Runde 4 noch einmal ausführen: Die Kachel zeigt weiter „5/5 Snippets“ und dieselbe Summe.
 4. **Offline-Probe:** In `config.py` `SCOREBOARD_URL = ""` setzen, Kernel neu starten und `sende` ausführen. Erwartet wird „lokal gesichert“, und `scoreboard_backup.csv` liegt im Arbeitsverzeichnis. URL zurücksetzen, Kernel neu starten und noch einmal `sende` ausführen. Die gesicherten Zeilen erscheinen dann mit am Dashboard, und die CSV ist weg.
 5. Danach `session_id` auf die Live-Session setzen (z. B. `2026-11-19-live`). Das Dashboard ist dann leer.
 

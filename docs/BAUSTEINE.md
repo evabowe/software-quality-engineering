@@ -76,6 +76,7 @@ sende(ergebnisse, runde=4)    # → ✅ 5 Ergebnis(se) gesendet …
 - **Runde 1 und 2** erwarten das Ergebnis von `bewerte`, **Runde 3 und 4** die Liste von `bewerte_alle`. Bei einer Verwechslung kommt ein Hinweis, und es wird nichts gesendet.
 - Fehlgeschlagene Snippets und Mock-Ergebnisse werden nicht gesendet.
 - Ist das Dashboard nicht erreichbar, wird lokal gesichert und beim nächsten `sende` automatisch nachgeholt.
+- Dasselbe Ergebnis noch einmal zu senden (z. B. Zelle doppelt ausgeführt) schadet nicht: Es zählt nur einmal.
 
 ## 3. Beispiele je Runde
 

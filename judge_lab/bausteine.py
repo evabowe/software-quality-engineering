@@ -94,7 +94,8 @@ def _bewerte_snippet(client, prompt: str, snippet: Snippet, modell: str, einreic
             f"Das Modell war nicht erreichbar oder hat abgelehnt ({_kurzgrund(result.error)}). "
             "Key, Guthaben oder Modellname prüfen.",
         )
-    if verdict is None:
+    if verdict is None or not (verdict.findings or verdict.scores):
+        # Abgeschnittene Antwort oder Ablehnung: kein Urteil – nicht als „0 Fehler gefunden“ werten.
         return _fehlschlag(ergebnis, UNLESBAR)
     ergebnis["code_score"] = weighted_score(verdict.scores)
     ergebnis["judge_score"] = challenge_points([match_findings(verdict.findings, snippet.defects)])
@@ -160,7 +161,8 @@ def _zeile(ergebnis: dict, runde: int) -> dict:
     zeile = {feld: ergebnis.get(feld, "") for feld in RECORD_FIELDS}
     zeile.update(
         timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        run_id=uuid.uuid4().hex,
+        # Gleiches Ergebnis in gleicher Runde → gleiche run_id; das Dashboard zählt es dann einmal.
+        run_id=uuid.uuid5(uuid.NAMESPACE_URL, f"{ergebnis.get('einreichung')}:{ergebnis.get('snippet')}:{runde}").hex,
         runde=runde,
     )
     return {feld: ("" if wert is None else wert) for feld, wert in zeile.items()}
@@ -179,6 +181,9 @@ def sende(ergebnis: dict | list[dict], runde: int) -> bool:
         print(f"❌ Für Runde {runde} bitte das Ergebnis von bewerte_alle(…) senden.")
         return False
     ergebnisse = ergebnis if liste else [ergebnis]
+    if not ergebnisse or not all(isinstance(e, dict) for e in ergebnisse):
+        print("❌ Bitte das Ergebnis von bewerte(…) bzw. bewerte_alle(…) senden.")
+        return False
     if any(e.get("modell") == "mock" for e in ergebnisse):
         print("ℹ️ Mock-Ergebnisse gehen nicht ans Dashboard.")
         return False
@@ -196,5 +201,8 @@ def sende(ergebnis: dict | list[dict], runde: int) -> bool:
     if board.submit(zeilen):
         print(f"✅ {len(zeilen)} Ergebnis(se) gesendet – das Dashboard zeigt es in ein paar Sekunden.")
         return True
-    print("⚠️ Dashboard nicht erreichbar – lokal gesichert, wird beim nächsten Senden nachgeholt.")
+    if board.last_error:
+        print(f"⚠️ Das Dashboard hat abgelehnt: {board.last_error} – lokal gesichert.")
+    else:
+        print("⚠️ Dashboard nicht erreichbar – lokal gesichert, wird beim nächsten Senden nachgeholt.")
     return False
