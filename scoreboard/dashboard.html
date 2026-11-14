@@ -2,422 +2,192 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     /* Beamertauglich: helles Theme, Schrift ≥ 18 px, kein horizontales Scrollen bei 1280 × 720.
-       Farben: „wir“ = Blau, „Paper“ = Orange (geprüft mit dem Palette-Validator, auch für Farbsehschwäche);
-       Heatmaps = eine Farbe von hell nach dunkel. */
+       Code-Score = Blau, Judge-Score = Orange (wie im abgestimmten Entwurf). */
     :root { --ink: #1f2933; --muted: #52606d; --line: #d9e2ec; --bg: #ffffff; --soft: #f5f7fa; --accent: #2f5fd0;
-            --ours: #2a78d6; --paper: #eb6834; }
+            --code: #2a6fdb; --judge: #c25e00; --lead: #f0b429; }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 16px 28px 64px; font: 20px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-           color: var(--ink); background: var(--bg); overflow-wrap: break-word; }
-    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 28px; }
-    h1 { font-size: 30px; margin: 0; }
-    h2 { font-size: 26px; margin: 28px 0 4px; }
-    h3 { font-size: 22px; margin: 20px 0 4px; }
-    .hint, .status, label, .source { color: var(--muted); font-size: 18px; }
-    .hint { margin: 0 0 10px; }
-    nav { position: sticky; top: 0; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--line);
-          display: flex; flex-wrap: wrap; gap: 10px; align-items: center; z-index: 2; }
-    nav button { font-size: 22px; padding: 8px 18px; }
-    nav button.active { background: var(--accent); color: #fff; }
-    button { font: inherit; font-size: 18px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent);
-             background: #fff; border-radius: 6px; cursor: pointer; }
-    #connected { font-size: 20px; margin: 8px 0 0; }
-    #admin { display: none; margin: 8px 0 0; padding: 8px 12px; background: #fff7e6; border: 1px solid #f0b429;
-             border-radius: 6px; font-size: 18px; }
-    #admin button { margin-left: 4px; padding: 2px 12px; }
-    table { border-collapse: collapse; margin: 8px 0; max-width: 100%; }
-    th, td { border: 1px solid var(--line); padding: 6px 12px; text-align: center; }
-    th { background: var(--soft); font-weight: 600; }
-    td.left, th.left { text-align: left; }
-    .nowrap { white-space: nowrap; }
-    .grid { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
-    .empty { color: var(--muted); font-style: italic; }
-    .prompt { white-space: pre-wrap; text-align: left; font: 18px/1.4 ui-monospace, Menlo, monospace; max-width: 60ch; }
-    .chart { max-width: 900px; }
-    details { margin: 24px 0; }
-    summary { font-size: 22px; font-weight: 600; cursor: pointer; color: var(--accent); }
-    section[data-view] { display: none; }
-    section[data-view].shown { display: block; }
-    /* Balken: dünne Marken, 4 px abgerundetes Ende an der Grundlinie verankert, Werte direkt beschriftet */
-    .bars { display: grid; grid-template-columns: max-content minmax(200px, 1fr) max-content; gap: 6px 14px;
-            align-items: center; max-width: 1100px; }
-    .track { background: var(--soft); height: 26px; border-radius: 0 4px 4px 0; }
-    .bar { height: 26px; border-radius: 0 4px 4px 0; background: var(--ours); }
-    .bar.paper { background: var(--paper); }
-    .bar.thin, .track.thin { height: 14px; }
-    .value { font-variant-numeric: tabular-nums; }
-    .legend { display: flex; gap: 24px; font-size: 18px; margin: 4px 0 8px; }
-    .swatch { display: inline-block; width: 16px; height: 16px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
-    .models { display: flex; flex-wrap: wrap; gap: 12px 40px; }
-    .model { flex: 0 0 380px; }  /* gleiche Breite: Balken sind über alle Modelle vergleichbar */
-    .cards { display: flex; flex-wrap: wrap; gap: 16px; }
-    .card { flex: 1 1 520px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; }
-    .card .prompt { max-width: none; margin: 8px 0 0; }
-    #resolution { display: none; }
+    body { margin: 0; padding: 12px 24px 24px; font: 20px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+           color: var(--ink); background: var(--bg); overflow-wrap: anywhere; }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
+    h1 { font-size: 28px; margin: 0; }
+    .status { color: var(--muted); font-size: 18px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+    nav button { font: inherit; font-size: 19px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px;
+                 background: var(--soft); color: var(--ink); cursor: pointer; }
+    nav button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; background: var(--bg); }
+    .tile.empty { opacity: .55; }
+    .tile.lead { border: 3px solid var(--lead); box-shadow: 0 0 0 3px rgba(240, 180, 41, .25); }
+    .tile h2 { font-size: 24px; margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; }
+    .badge { font-size: 18px; font-weight: 600; color: #7a5a00; }
+    .nums { display: flex; gap: 32px; margin-bottom: 6px; }
+    .num small { display: block; font-size: 18px; color: var(--muted); }
+    .num b { font-size: 40px; line-height: 1.1; }
+    .num.code b { color: var(--code); }
+    .num.judge b { color: var(--judge); }
+    .prompt { font: 18px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--soft);
+              border-radius: 8px; padding: 6px 10px; max-height: 4.2em; overflow: hidden; cursor: pointer;
+              white-space: pre-wrap; }
+    .prompt.open { max-height: none; }
+    .meta { font-size: 18px; color: var(--muted); margin-top: 4px; }
+    .chart { position: relative; height: 140px; }
+    .curve .prompt { max-height: 1.6em; }
+    .curve .prompt.open { max-height: none; }
+    .legend { font-size: 18px; color: var(--muted); margin: 0 0 8px; }
+    .legend i { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin: 0 6px 0 14px; }
+    @media (max-width: 760px) { .tiles { grid-template-columns: minmax(0, 1fr); } body { padding: 12px 16px; } }
   </style>
 </head>
 <body>
   <header>
     <h1>Scoreboard · LLM-as-a-Judge</h1>
-    <span class="status">Session: <strong id="session"></strong> · <span id="status">lädt …</span></span>
-    <label><input type="checkbox" id="precomputed"> Vorab-Daten einblenden</label>
+    <span class="status">Session: <strong id="session">–</strong> · <span id="status">lädt …</span></span>
   </header>
   <nav>
-    <button data-show="1">① Gutachten</button><button data-show="2">② LLM-Judge</button>
-    <button data-show="3">③ Paper vs. wir</button><button data-show="4">④ Challenge</button>
-    <button data-show="5">Auflösung</button>
-    <span class="hint" style="margin:0">Tasten 1–5</span>
+    <button data-round="1">1 Frei ausprobieren</button>
+    <button data-round="2">2 Rollen vergleichen</button>
+    <button data-round="3">3 Komplexität</button>
+    <button data-round="4">4 AI Challenge</button>
   </nav>
-  <div id="connected"></div>
-  <div id="admin">Freigabe im Notebook: Phase <strong id="phaseNow">–</strong> ·
-    setzen: <span id="phaseButtons"></span> <span id="adminMessage"></span></div>
-
-  <section data-view="1">
-    <h2>① Mensch: gleicher Code, andere Rolle</h2>
-    <p class="hint">Score (1–10), den jede Gruppe <code>bank_account</code> gegeben hat – jede mit einer verdeckten Rollenkarte</p>
-    <div id="humanBars"></div>
-    <p><button id="revealRoles">Rollen aufdecken</button></p>
-  </section>
-
-  <section data-view="2">
-    <h2>② Mensch vs. LLM – gleicher Code</h2>
-    <p class="hint"><code>bank_account</code> ohne Tests · Recall = Anteil der 6 Defekte, die gefunden wurden</p>
-    <div id="humanVsLlm"></div>
-    <h3>Prognosen</h3>
-    <div id="predictions"></div>
-    <h2>Verschiebt die Haltung die Note?</h2>
-    <p class="hint">Ø gewichteter Score (0–10) je Modell und Haltung, alle Beispiele</p>
-    <div id="scoreHeatmap"></div>
-    <h2>… und auch die Fehlerfindung?</h2>
-    <p class="hint">Links Ø Recall, rechts Ø Fehlalarme pro Lauf (dunkler = mehr)</p>
-    <div class="grid"><div id="recallHeatmap"></div><div id="fpHeatmap"></div></div>
-  </section>
-
-  <section data-view="3">
-    <h2>③ Paper vs. wir: Ø Score je Haltung</h2>
-    <div class="legend"><span><span class="swatch" style="background:var(--paper)"></span>Paper</span>
-      <span><span class="swatch" style="background:var(--ours)"></span>wir (alle Beispiele)</span></div>
-    <div id="paperChart" class="models"></div>
-    <p class="source" id="paperSource"></p>
-    <h2>Und der Recall?</h2>
-    <p class="hint">Das Paper misst nur Noten. Wir wissen, wo die Defekte liegen: Ø Anteil gefundener Defekte</p>
-    <div id="recallHeatmap3"></div>
-    <details>
-      <summary>Mehr: Übereinstimmung, Komplexität, Tests, Contamination, Formattreue</summary>
-      <h3>RQ1 · Wie einig sind sich die Judges?</h3>
-      <p class="hint">Anteil der Läufe, in denen ein Modell den Defekt gefunden hat</p>
-      <div id="defectByModel"></div>
-      <p class="hint">Spearman-ρ der Scores zwischen den Modellen (gleiche Beispiele, Haltungen, Testvarianten)</p>
-      <div id="spearman"></div>
-      <h3>RQ3 · Recall über die Komplexitätsstufe</h3>
-      <p class="hint">QuixBugs-Beispiele L1–L5; bank_account hat keine Stufe</p>
-      <div class="chart"><canvas id="levelChart" height="110"></canvas></div>
-      <h3>Hilft der Testcode als Kontext?</h3>
-      <div id="testsDelta"></div>
-      <h3>Öffentlicher Benchmark vs. unbekannter Code</h3>
-      <p class="hint">QuixBugs ist seit 2017 öffentlich (vermutlich in den Trainingsdaten), bank_account nicht</p>
-      <div id="publicVsPrivate"></div>
-      <h3>Formattreue</h3>
-      <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren; Läufe mit Infrastrukturfehlern zählen nirgends in die Wertung</p>
-      <div id="parseFailures"></div>
-    </details>
-  </section>
-
-  <section data-view="4">
-    <h2>④ Leaderboard Prompt-Challenge</h2>
-    <p class="hint">Beste Einreichung je Gruppe · Punkte = 2 × Treffer − 1 × Fehlalarm über alle Beispiele</p>
-    <div id="leaderboardTable"></div>
-    <h2>Prompt-Galerie: die beste Einreichung jeder Gruppe</h2>
-    <p class="hint">Grundlage für die Abstimmung über die beste Erklärung</p>
-    <div id="bestPrompts" class="cards"></div>
-    <details>
-      <summary>Alle Einreichungen</summary>
-      <div id="galleryTable"></div>
-    </details>
-  </section>
-
-  <section data-view="5">
-    <h2>Prognose vs. Ergebnis</h2>
-    <div id="predictionResult"></div>
-    <div id="predictionCheck"></div>
-    <h2>Auflösung: die Defekte</h2>
-    <button id="reveal">Ground Truth anzeigen</button>
-    <div id="resolution"></div>
-  </section>
+  <p class="legend" id="legend"></p>
+  <div class="tiles" id="tiles"></div>
 
   <script>
-    const SESSION = <?= session ?>;
-    const ADMIN = <?= admin ?>;
     const REFRESH_MS = 10000;
-    // Dashboard-Ansicht → Freigabe im Notebook. ② gibt auch Reiter 3 frei (Schritt 3 läuft in derselben Phase).
-    const VIEW_PHASE = { 1: 1, 2: 3, 3: 3, 4: 4, 5: 5 };
-    const NAMES = { gemini: "Gemini", deepseek: "DeepSeek", kimi: "Kimi", doubao: "Doubao", local: "Qwen lokal",
-                    local_fallback: "Qwen klein", reference: "Referenz", mock: "Mock", human: "wir Menschen" };
-    const ROLE_NAMES = { strict: "strict", objective: "objective", lenient: "lenient", none: "keine Rolle" };
-    let chart = null;
+    let round = String(window.INITIAL_VIEW || 1);
     let data = null;
-    let view = window.INITIAL_VIEW || 1;
-    let rolesRevealed = false;
+    let charts = [];
+    const openPrompts = new Set();
 
     function esc(value) {
       return String(value === null || value === undefined ? "" : value)
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
-    function fmt(value, digits) {
+    function fmt(value) {
       if (value === null || value === undefined || value === "") return "–";
-      return Number(value).toLocaleString("de-DE", { maximumFractionDigits: digits === undefined ? 2 : digits });
+      return Number(value).toLocaleString("de-DE", { maximumFractionDigits: 2 });
     }
 
-    function name(key) { return NAMES[key] || key; }
-    function role(r) { return rolesRevealed ? (ROLE_NAMES[r] || r) : "Rolle ?"; }
-
-    // Eine Farbe (Blau) von hell (wenig) nach dunkler (viel); Text bleibt dunkel und lesbar.
-    function color(value, max) {
-      if (value === null || value === undefined) return "#ffffff";
-      const t = Math.max(0, Math.min(1, value / max));
-      const from = [242, 247, 253], to = [109, 167, 236];
-      return "rgb(" + from.map((c, i) => Math.round(c + (to[i] - c) * t)).join(",") + ")";
+    function ago(iso) {
+      const t = Date.parse(iso);
+      if (!t) return "";
+      const minutes = Math.max(0, Math.round((Date.now() - t) / 60000));
+      return minutes < 1 ? "gerade eben" : "vor " + minutes + " min";
     }
 
-    function table(headers, rows) {
-      if (!rows.length) return '<p class="empty">Noch keine Daten.</p>';
-      const head = "<tr>" + headers.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr>";
-      return "<table>" + head + rows.join("") + "</table>";
+    function promptBox(group, text) {
+      const open = openPrompts.has(group) ? " open" : "";
+      return "<div class='prompt" + open + "' data-group='" + esc(group) + "' title='" + esc(text) + "'>" +
+        esc(text) + "</div>";
     }
 
-    function heatmap(values, models, attitudes, max, digits) {
-      return table([""].concat(attitudes), models.map((m) =>
-        "<tr><th class='left'>" + esc(name(m)) + "</th>" + attitudes.map((a) => {
-          const v = values[m][a];
-          return "<td style='background:" + color(v, max) + "' title='" + esc(name(m) + " · " + a + ": " + fmt(v, digits)) +
-            "'>" + fmt(v, digits) + "</td>";
-        }).join("") + "</tr>"));
+    function emptyTile(group) {
+      const text = data.connected[group] ? "verbunden – noch nichts gesendet" : "noch nichts gesendet";
+      return "<div class='tile empty'><h2>" + esc(group) + "</h2><div class='meta'>" + text + "</div></div>";
     }
 
-    function bar(value, max, cls, tip) {
-      const width = value === null || value === undefined ? 0 : Math.max(0, Math.min(1, value / max)) * 100;
-      return "<div class='track " + (cls || "") + "' title='" + esc(tip) + "'><div class='bar " + (cls || "") +
-        "' style='width:" + width + "%'></div></div>";
+    function scoreTile(group, t, extra, lead) {
+      return "<div class='tile" + (lead ? " lead" : "") + "'><h2><span>" + esc(group) + "</span>" +
+        (lead ? "<span class='badge'>🏆 vorne</span>" : "") + "</h2>" +
+        "<div class='nums'><div class='num judge'><small>Judge-Score</small><b>" + fmt(t.judge_score) + "</b></div>" +
+        "<div class='num code'><small>Code-Score</small><b>" + fmt(t.code_score) + "</b></div></div>" +
+        promptBox(group, t.prompt) +
+        "<div class='meta'>" + esc(extra) + " · " + esc(t.modell) + " · " + ago(t.timestamp) + "</div></div>";
     }
 
-    // --- Ansichten ------------------------------------------------------------------
-
-    function renderHuman(d) {
-      document.getElementById("humanBars").innerHTML = d.human.length ? "<div class='bars'>" + d.human.map((h) =>
-        "<div><strong>" + esc(h.group) + "</strong> · " + esc(role(h.role)) + "</div>" +
-        bar(h.score, 10, "", h.group + ": Score " + fmt(h.score, 1)) +
-        "<div class='value'><strong>" + fmt(h.score, 1) + "</strong> · " + fmt(h.tp, 0) + "/" + fmt(h.n_defects, 0) +
-        " gefunden</div>").join("") + "</div>" : '<p class="empty">Noch keine Gutachten.</p>';
-
-      // Kompakt für den Beamer: Zeilen = Mensch und Modelle, Spalten = Rolle bzw. Haltung, Zelle = Score und Recall.
-      const columns = d.attitudes.concat(["none"]);
-      const cell = (score, recall, who) => "<strong>" + fmt(score, 1) + "</strong><br><span class='hint'>" +
-        (who ? esc(who) + " · " : "") + "Recall " + fmt(recall) + "</span>";
-      let humanRow;
-      if (!d.humanVsLlm.human.length) {
-        humanRow = "<td colspan='" + columns.length + "' class='empty'>noch keine Gutachten</td>";
-      } else if (!rolesRevealed) {
-        humanRow = "<td colspan='" + columns.length + "' class='empty'>Rollen noch verdeckt – in ① aufdecken</td>";
-      } else {
-        humanRow = columns.map((c) => "<td>" + d.humanVsLlm.human.filter((h) => h.role === c)
-          .map((h) => cell(h.score, h.recall, h.group)).join("<br>") + "</td>").join("");
-      }
-      const llmRows = Array.from(new Set(d.humanVsLlm.llm.map((l) => l.model))).map((m) =>
-        "<tr><th class='left'>LLM · " + esc(name(m)) + "</th>" + columns.map((c) => {
-          const l = d.humanVsLlm.llm.find((x) => x.model === m && x.attitude === c);
-          return "<td>" + (l ? cell(l.score, l.recall) : "") + "</td>";
-        }).join("") + "</tr>");
-      document.getElementById("humanVsLlm").innerHTML = table([""].concat(columns.map((c) => ROLE_NAMES[c])),
-        ["<tr><th class='left'>Mensch</th>" + humanRow + "</tr>"].concat(llmRows));
+    function curveTile(group, c, index) {
+      return "<div class='tile curve'><h2>" + esc(group) + "</h2>" +
+        "<div class='chart'><canvas id='chart-" + index + "'></canvas></div>" +
+        promptBox(group, c.prompt) +
+        "<div class='meta'>" + esc(c.modell) + " · " + ago(c.timestamp) + "</div></div>";
     }
 
-    function renderPaper(d) {
-      const keys = Object.keys(d.paper.scores).concat(d.models.filter((m) => !(m in d.paper.scores)));
-      document.getElementById("paperChart").innerHTML = keys.map((m) => {
-        const paper = d.paper.scores[m] || {};
-        const ours = d.scoreHeatmap[m] || {};
-        const label = name(m) + (d.paper.scores[m] ? (d.models.indexOf(m) < 0 ? " (nur Paper)" : "") : " (nur wir)");
-        return "<div class='model'><h3>" + esc(label) + "</h3><div class='bars'>" + d.attitudes.map((a) =>
-          "<div>" + esc(a) + "</div>" +
-          "<div>" + bar(paper[a], 10, "paper thin", name(m) + " · " + a + " · Paper: " + fmt(paper[a])) +
-          "<div style='height:2px'></div>" + bar(ours[a], 10, "thin", name(m) + " · " + a + " · wir: " + fmt(ours[a])) +
-          "</div><div class='value'>" + fmt(paper[a], 1) + " / <strong>" + fmt(ours[a], 1) + "</strong></div>").join("") +
-          "</div></div>";
-      }).join("");
-      document.getElementById("paperSource").textContent = "Quelle Paper-Werte: " + d.paper.source +
-        ". Gleiche Haltungs-Prompts, aber andere Beispiele, Modellversionen und Temperatur.";
+    function drawChart(index, c) {
+      const canvas = document.getElementById("chart-" + index);
+      if (!canvas || !window.Chart) return;
+      const labels = c.points.map((p) => [p.komplexitaet, p.snippet.replace(/^qb_/, "")]);
+      charts.push(new Chart(canvas, {
+        type: "line",
+        data: { labels, datasets: [
+          { label: "Code-Score", data: c.points.map((p) => p.code_score), yAxisID: "code",
+            borderColor: "#2a6fdb", backgroundColor: "#2a6fdb", borderWidth: 3, pointRadius: 5, spanGaps: true },
+          { label: "Judge-Score", data: c.points.map((p) => p.judge_score), yAxisID: "judge",
+            borderColor: "#c25e00", backgroundColor: "#c25e00", borderWidth: 3, pointRadius: 5, spanGaps: true },
+        ] },
+        options: {
+          animation: false, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { font: { size: 14 } } },
+            code: { position: "left", min: 0, max: 10, title: { display: true, text: "Code", color: "#2a6fdb" },
+                    ticks: { color: "#2a6fdb", font: { size: 14 } } },
+            judge: { position: "right", grid: { drawOnChartArea: false },
+                     title: { display: true, text: "Judge", color: "#c25e00" },
+                     ticks: { color: "#c25e00", font: { size: 14 }, precision: 0 } },
+          },
+        },
+      }));
     }
 
-    function renderChallenge(d) {
-      document.getElementById("leaderboardTable").innerHTML = table(
-        ["Platz", "Gruppe", "Modell", "Einreichung", "Punkte", "Punkte Referenzmodell"],
-        d.leaderboard.map((e, i) => "<tr><td>" + (i + 1) + "</td><td class='left'>" + esc(e.group) + "</td><td>" +
-          esc(name(e.model_key)) + "</td><td>" + fmt(e.submission_no, 0) + "</td><td><strong>" + fmt(e.points, 0) +
-          "</strong></td><td>" + fmt(e.reference_points, 0) + "</td></tr>"));
-      document.getElementById("bestPrompts").innerHTML = d.leaderboard.length ? d.leaderboard.slice()
-        .sort((x, y) => x.group.localeCompare(y.group)).map((e) =>
-          "<div class='card'><strong>" + esc(e.group) + "</strong> · " + fmt(e.points, 0) + " Punkte (Einreichung " +
-          fmt(e.submission_no, 0) + ")<div class='prompt'>" + esc(e.prompt_text) + "</div></div>").join("")
-        : '<p class="empty">Noch keine Einreichungen.</p>';
-      document.getElementById("galleryTable").innerHTML = table(["Gruppe", "Nr.", "Punkte", "Referenz", "Prompt"],
-        d.gallery.map((g) => "<tr><td class='left'>" + esc(g.group) + "</td><td>" + fmt(g.submission_no, 0) + "</td><td>" +
-          fmt(g.points, 0) + "</td><td>" + fmt(g.reference_points, 0) + "</td><td class='prompt'>" +
-          esc(g.prompt_text) + "</td></tr>"));
-    }
-
-    function renderResolution(d) {
-      const c = d.predictionCheck;
-      const names = (list) => list.length ? list.map(name).join(", ") : "–";
-      document.getElementById("predictionResult").innerHTML =
-        "<p><strong>H1 · strict vs. lenient:</strong> Ø Recall strict " + fmt(c.recallStrict) + " · lenient " +
-        fmt(c.recallLenient) + " → <strong>" + esc(c.strictVsLenient || "noch offen") + "</strong></p>" +
-        "<p><strong>H2 · bester Judge</strong> auf bank_account (dem Code, den alle gesehen haben): <strong>" +
-        esc(names(c.bestBankAccount)) + "</strong> · bester LLM-Judge über alle Beispiele: " + esc(names(c.bestOverall)) + "</p>";
-      const mark = (hit) => "<td class='nowrap'>" + (hit ? "✅ richtig" : "❌ daneben") + "</td>";
-      document.getElementById("predictionCheck").innerHTML = table(
-        ["Gruppe", "Prognose H1 (strict vs. lenient)", "", "Prognose H2 (bester Judge)", ""],
-        c.predictions.map((p) => "<tr><td class='left nowrap'>" + esc(p.group) + "</td><td class='left'>" +
-          esc(p.strict_vs_lenient) + "</td>" + mark(p.strictVsLenientHit) + "<td>" + esc(name(p.best_model)) + "</td>" +
-          mark(p.bestHit) + "</tr>"));
-      document.getElementById("resolution").innerHTML = table(["Beispiel", "Defekt", "Art", "Zeilen", "Beschreibung"],
-        d.resolution.map((r) => "<tr><td class='left'>" + esc(r.snippet_id) + "</td><td>" + esc(r.defect_id) +
-          "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.lines) + "</td><td class='left'>" + esc(r.description) + "</td></tr>"));
-    }
-
-    function renderMore(d) {
-      const models = d.models;
-      document.getElementById("defectByModel").innerHTML = table(["Beispiel", "Defekt", "Art"].concat(models.map(name)),
-        d.defectByModel.map((row) => "<tr><td class='left'>" + esc(row.snippet_id) + "</td><td>" + esc(row.defect_id) +
-          "</td><td>" + esc(row.kind) + "</td>" + models.map((m) =>
-            "<td style='background:" + color(row.rates[m], 1) + "'>" + fmt(row.rates[m], 2) + "</td>").join("") + "</tr>"));
-      document.getElementById("spearman").innerHTML = table([""].concat(models.map(name)), models.map((a) =>
-        "<tr><th class='left'>" + esc(name(a)) + "</th>" + models.map((b) => "<td>" + fmt(d.spearman[a][b], 2) + "</td>").join("") + "</tr>"));
-
-      const datasets = models.map((m) => ({ label: name(m), data: d.recallByLevel.series[m], spanGaps: true, tension: 0.2,
-                                            borderWidth: 2, pointRadius: 5 }));
-      if (window.Chart) {
-        if (!chart) {
-          chart = new Chart(document.getElementById("levelChart"), {
-            type: "line",
-            data: { labels: d.recallByLevel.levels, datasets: datasets },
-            options: { animation: false, interaction: { mode: "index", intersect: false },
-                       scales: { y: { min: 0, max: 1, title: { display: true, text: "Recall" } } },
-                       plugins: { legend: { labels: { font: { size: 18 } } } } },
-          });
-        } else {
-          chart.data.datasets = datasets;
-          chart.update();
-        }
-      }
-
-      document.getElementById("testsDelta").innerHTML = table(
-        ["Modell", "Recall mit Tests", "Recall ohne", "Δ Recall", "FP mit Tests", "FP ohne"],
-        models.map((m) => {
-          const t = d.testsDelta[m];
-          const delta = t.recallWith === null || t.recallWithout === null ? null : t.recallWith - t.recallWithout;
-          return "<tr><th class='left'>" + esc(name(m)) + "</th><td>" + fmt(t.recallWith) + "</td><td>" + fmt(t.recallWithout) +
-            "</td><td>" + fmt(delta) + "</td><td>" + fmt(t.fpWith, 1) + "</td><td>" + fmt(t.fpWithout, 1) + "</td></tr>";
-        }));
-      document.getElementById("publicVsPrivate").innerHTML = table(["Modell", "Recall QuixBugs", "Recall bank_account"],
-        models.map((m) => "<tr><th class='left'>" + esc(name(m)) + "</th><td>" + fmt(d.publicVsPrivate[m].quixbugs) +
-          "</td><td>" + fmt(d.publicVsPrivate[m].bank_account) + "</td></tr>"));
-      const failureModels = Array.from(new Set(Object.keys(d.parseFailures).concat(Object.keys(d.infraErrors)))).sort();
-      document.getElementById("parseFailures").innerHTML = table(["Modell", "unlesbar", "gewertete Läufe", "Fehler (Key, Limit, Netz)"],
-        failureModels.map((m) => {
-          const p = d.parseFailures[m] || { failed: 0, total: 0 };
-          return "<tr><th class='left'>" + esc(name(m)) + "</th><td>" + p.failed + "</td><td>" + p.total +
-            "</td><td>" + (d.infraErrors[m] || 0) + "</td></tr>";
-        }));
-    }
-
-    function render(d) {
-      data = d;
-      document.getElementById("status").textContent =
-        d.runs + " Läufe · aktualisiert " + new Date().toLocaleTimeString("de-DE");
-      document.getElementById("connected").innerHTML = "Verbunden: " + Object.keys(d.connected).map((g) =>
-        esc(g) + " " + (d.connected[g] ? "✅" : "⏳")).join(" · ");
-      document.getElementById("phaseNow").textContent = d.phase === undefined ? "–" : d.phase;
-
-      const models = d.models;
-      document.getElementById("scoreHeatmap").innerHTML = heatmap(d.scoreHeatmap, models, d.attitudes, 10, 1);
-      document.getElementById("recallHeatmap").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, 2);
-      document.getElementById("recallHeatmap3").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, 2);
-      document.getElementById("fpHeatmap").innerHTML = heatmap(d.fpHeatmap, models, d.attitudes, 3, 1);
-      document.getElementById("predictions").innerHTML = table(["Gruppe", "H1 (strict vs. lenient)", "H2 (bester Judge)"],
-        d.predictions.map((p) => "<tr><td class='left nowrap'>" + esc(p.group) + "</td><td class='left'>" + esc(p.strict_vs_lenient) +
-          "</td><td>" + esc(name(p.best_model)) + "</td></tr>"));
-      renderHuman(d);
-      renderPaper(d);
-      renderChallenge(d);
-      renderResolution(d);
-      renderMore(d);
+    function render() {
+      document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.round === round));
+      if (!data) return;
+      document.getElementById("session").textContent = data.session || "–";
+      charts.forEach((chart) => chart.destroy());
+      charts = [];
+      const tiles = data.rounds[round] || {};
+      const legend = document.getElementById("legend");
+      legend.innerHTML = round === "3"
+        ? "<i style='background:var(--code)'></i>Code-Score (links, 0–10)<i style='background:var(--judge)'></i>Judge-Score (rechts)"
+        : round === "4" ? "Judge-Score = Summe über 5 Snippets · Code-Score = Durchschnitt" : "";
+      const html = data.groups.map((g, i) => {
+        const t = tiles[g];
+        if (!t) return emptyTile(g);
+        if (round === "3") return curveTile(g, t, i);
+        if (round === "4") return scoreTile(g, t, t.n + "/5 Snippets", data.leaders.indexOf(g) >= 0);
+        return scoreTile(g, t, t.snippet, false);
+      });
+      document.getElementById("tiles").innerHTML = html.join("");
+      if (round === "3") data.groups.forEach((g, i) => { if (tiles[g]) drawChart(i, tiles[g]); });
+      document.querySelectorAll(".prompt").forEach((box) => box.addEventListener("click", () => {
+        const group = box.dataset.group;
+        if (openPrompts.has(group)) openPrompts.delete(group); else openPrompts.add(group);
+        box.classList.toggle("open");
+      }));
     }
 
     function load() {
+      const status = document.getElementById("status");
       if (!window.google || !google.script) {
-        document.getElementById("status").textContent = "Nur als Apps-Script-Web-App lauffähig (siehe DEPLOY.md).";
+        status.textContent = "Nur als Apps-Script-Web-App lauffähig (siehe docs/DASHBOARD_TEST.md).";
         return;
       }
       google.script.run
-        .withSuccessHandler(render)
-        .withFailureHandler((err) => {
-          document.getElementById("status").textContent = "Fehler beim Laden: " + err.message;
+        .withSuccessHandler((d) => {
+          data = d;
+          status.textContent = "aktualisiert " + new Date().toLocaleTimeString("de-DE");
+          render();
         })
-        .getData(SESSION, document.getElementById("precomputed").checked);
+        .withFailureHandler((err) => { status.textContent = "Fehler beim Laden: " + err.message; })
+        .getData();
     }
 
-    // --- Phasen, Admin-Modus ----------------------------------------------------------
-
-    function setPhase(n) {
-      const message = document.getElementById("adminMessage");
-      message.textContent = "setze …";
-      google.script.run
-        .withSuccessHandler((result) => {
-          message.textContent = result.status === "ok" ? "✅ Phase " + result.phase : "⚠️ " + result.message;
-          load();
-        })
-        .withFailureHandler((err) => { message.textContent = "⚠️ " + err.message; })
-        .setPhase(n, ADMIN);
-    }
-
-    function showView(n) {
-      view = n;
-      document.querySelectorAll("section[data-view]").forEach((s) => s.classList.toggle("shown", s.dataset.view === String(n)));
-      document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.show === String(n)));
+    function showRound(n) {
+      round = String(n);
+      render();
       window.scrollTo(0, 0);
-      // Im Admin-Modus öffnet dieselbe Ansicht die passenden Reiter – aber schließt nie welche.
-      if (ADMIN && data && window.google && google.script && VIEW_PHASE[n] > (data.phase || 0)) setPhase(VIEW_PHASE[n]);
     }
 
-    document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => showView(Number(b.dataset.show))));
+    document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => showRound(b.dataset.round)));
     document.addEventListener("keydown", (event) => {
-      if (event.target.tagName === "INPUT" || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (/^[1-5]$/.test(event.key)) showView(Number(event.key));
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (/^[1-4]$/.test(event.key)) showRound(event.key);
     });
-    if (ADMIN) {
-      document.getElementById("admin").style.display = "block";
-      document.getElementById("phaseButtons").innerHTML = [0, 1, 2, 3, 4, 5].map((n) =>
-        "<button data-phase='" + n + "'>" + n + "</button>").join("");
-      document.querySelectorAll("#phaseButtons button").forEach((b) =>
-        b.addEventListener("click", () => setPhase(Number(b.dataset.phase))));
-    }
-    document.getElementById("revealRoles").addEventListener("click", () => {
-      rolesRevealed = true;
-      document.getElementById("revealRoles").style.display = "none";
-      if (data) renderHuman(data);
-    });
-    document.getElementById("session").textContent = SESSION;
-    document.getElementById("precomputed").addEventListener("change", load);
-    document.getElementById("reveal").addEventListener("click", () => {
-      document.getElementById("resolution").style.display = "block";
-      document.getElementById("reveal").style.display = "none";
-    });
-    showView(view);
+    render();
     load();
     setInterval(load, REFRESH_MS);
   </script>
