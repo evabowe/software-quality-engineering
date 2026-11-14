@@ -2,13 +2,12 @@
 
 Jedes Snippet besteht aus der Programmdatei (Originalname, siehe ``code_file``),
 ``tests.py`` und ``meta.yaml``. Die Ground Truth (``defects``) bleibt im Python-
-Prozess; ``public_view`` liefert alles, was gefahrlos angezeigt werden darf.
+Prozess und wird nie an ein LLM gesendet.
 """
 
 from __future__ import annotations
 
-import ast
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -54,21 +53,6 @@ class Snippet:
         return "\n".join(
             f"{n:>3} | {line}".rstrip() for n, line in enumerate(self.code.splitlines(), start=1)
         )
-
-    def public_view(self) -> dict:
-        """Alle Felder außer der Ground Truth, z. B. für die Anzeige im Notebook."""
-        view = asdict(self)
-        del view["defects"]
-        return view
-
-    def function_names(self) -> set[str]:
-        """Namen aller Funktionen, Methoden und Klassen im Code."""
-        tree = ast.parse(self.code)
-        return {
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        }
 
     def patched_code(self) -> str:
         """Code mit allen Korrekturen aus der Ground Truth (für die Plausibilisierung)."""

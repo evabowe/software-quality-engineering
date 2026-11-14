@@ -66,6 +66,13 @@ def test_complete_success(fake_api):
     assert request["json"]["temperature"] == 0
     assert request["json"]["max_tokens"] == config.MAX_TOKENS
     assert request["json"]["response_format"] == {"type": "json_object"}
+    assert result.finish_reason == "stop"
+
+
+def test_answer_budget_leaves_room_for_reasoning():
+    # GPT-6 Luna denkt vor der Antwort; Denk-Tokens zählen in max_tokens. Mit 2000 wurden
+    # strenge Rollen-Prompts abgeschnitten (gemessen: 1875 Reasoning-Tokens, finish_reason=length).
+    assert config.MAX_TOKENS >= 16000
 
 
 def test_server_error_becomes_error_result(fake_api):
@@ -80,33 +87,24 @@ def test_unreachable_server_becomes_error_result():
     assert result.error
 
 
+def test_make_client_any_openrouter_id():
+    client = make_client("openai/gpt-6-luna", "sk-test")
+    assert client.provider == "openrouter" and client.model_id == "openai/gpt-6-luna"
+
+
+def test_make_client_mock_needs_no_key():
+    assert make_client("mock", None).model_id == "mock"
+
+
 def test_make_client_missing_key():
-    with pytest.raises(ConfigError, match="API-Key"):
-        make_client("gemini", api_key="")
+    with pytest.raises(ConfigError, match="verbinde"):
+        make_client("openai/gpt-6-luna", "")
 
 
-def test_make_client_placeholder_id(monkeypatch):
-    monkeypatch.setitem(config.MODELS, "gemini", {**config.MODELS["gemini"], "id": "google/gemini-<aktuell>"})
-    with pytest.raises(ConfigError, match="Modell-ID"):
-        make_client("gemini", api_key="sk-test")
-
-
-def test_make_client_unknown_model():
-    with pytest.raises(ConfigError):
-        make_client("gpt-99", api_key="sk-test")
-
-
-def test_make_client_ollama_needs_no_key():
-    client = make_client("local", api_key=None)
-    assert isinstance(client, ChatClient)
-    assert client.provider == "ollama"
-    assert client.model_id == "qwen2.5-coder:3b"
-
-
-def _mock_answer(snippet_id, attitude="objective"):
+def _mock_answer(snippet_id):
     snippet = get_snippet(snippet_id)
     client = MockClient(load_snippets())
-    return snippet, client.complete(build_prompt(snippet, attitude=attitude, with_tests=False))
+    return snippet, client.complete(build_prompt(snippet, "Sei streng."))
 
 
 def test_mock_deterministic_and_parsable():
@@ -116,14 +114,7 @@ def test_mock_deterministic_and_parsable():
     verdict = parse_verdict(first.text, snippet.line_count)
     result = match_findings(verdict.findings, snippet.defects)
     assert result.tp >= 1 and result.fp >= 1
-
-
-def test_mock_scores_depend_on_attitude():
-    snippet, strict = _mock_answer("qb_quicksort", "strict")
-    _, lenient = _mock_answer("qb_quicksort", "lenient")
-    strict_scores = parse_verdict(strict.text, snippet.line_count).scores
-    lenient_scores = parse_verdict(lenient.text, snippet.line_count).scores
-    assert strict_scores["functional_correctness"] < lenient_scores["functional_correctness"]
+    assert verdict.scores["functional_correctness"] == 6
 
 
 def test_mock_wraps_shunting_yard_in_prose():
@@ -140,6 +131,6 @@ def test_mock_broken_json_for_levenshtein():
 
 def test_mock_descriptions_reveal_no_ground_truth():
     for snippet in load_snippets():
-        answer = MockClient(load_snippets()).complete(build_prompt(snippet, attitude="strict", with_tests=True))
+        answer = MockClient(load_snippets()).complete(build_prompt(snippet, "Sei streng."))
         for defect in snippet.defects:
             assert defect.description not in answer.text

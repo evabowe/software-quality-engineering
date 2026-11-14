@@ -1,6 +1,6 @@
 # Hinweise zu Drittinhalten
 
-Dieses Repository enthält Inhalte aus zwei fremden Quellen. Beide stehen unter der MIT-Lizenz; der jeweilige Lizenztext ist unten bzw. im genannten Ordner wiedergegeben.
+Dieses Repository enthält Inhalte aus einer fremden Quelle. Sie steht unter der MIT-Lizenz; der Lizenztext ist unten wiedergegeben.
 
 ## QuixBugs
 
@@ -17,9 +17,3 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
-
-## ai-as-a-judge (Rollen-Prompts)
-
-- **Ordner:** `prompts/original/` (unverändert); adaptierte Fassungen in `prompts/attitudes/`, Änderungen dokumentiert in `prompts/ADAPTATION.md`
-- **Quelle:** https://github.com/Sherlin-star/ai-as-a-judge, Commit `8861bf4`
-- **Lizenz:** MIT, © 2026 Sherlin-star; vollständiger Lizenztext in `prompts/original/SOURCE.md`

@@ -13,8 +13,6 @@ dependencies = [
     "openai>=1.40",
     "pydantic>=2",
     "pyyaml>=6",
-    "ipywidgets>=8",
-    "pandas>=2",
     "requests>=2.31",
     "complexipy>=3",
 ]
