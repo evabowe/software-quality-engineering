@@ -1,6 +1,6 @@
 # Bausteine fürs Notebook
 
-Für dein Notebook gibt es genau vier Funktionen:
+Für das Notebook gibt es genau vier Funktionen:
 
 | Funktion | Wofür |
 |---|---|
