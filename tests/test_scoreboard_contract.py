@@ -22,9 +22,10 @@ def _js_constant(name):
     return json.loads(literal.replace("'", '"').replace(",\n]", "\n]").replace(",]", "]"))
 
 
-@pytest.mark.xfail(reason="Code.gs folgt in Task 5", strict=True)
 def test_fields_match():
-    assert tuple(_js_constant("FIELDS")) == RECORD_FIELDS
+    fields = tuple(_js_constant("FIELDS"))
+    assert fields[:-1] == RECORD_FIELDS
+    assert fields[-1] == "session_id"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js nicht installiert")
