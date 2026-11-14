@@ -1,8 +1,6 @@
-"""LLM-Clients: ein OpenAI-kompatibler Client für OpenRouter und Ollama sowie ein Mock.
+"""LLM-Clients: ein OpenAI-kompatibler Client für OpenRouter sowie ein Mock.
 
-OpenRouter und Ollama sprechen beide das Chat-Completions-Format; nur
-``base_url``, ``api_key`` und Modell-ID unterscheiden sich. Retries mit
-exponentiellem Backoff bei 429/5xx/Timeout übernimmt das openai-SDK.
+Retries mit exponentiellem Backoff bei 429/5xx/Timeout übernimmt das openai-SDK.
 """
 
 from __future__ import annotations
@@ -14,21 +12,12 @@ from dataclasses import dataclass
 
 from openai import OpenAI
 
-from judge_lab.config import (
-    MAX_RETRIES,
-    MAX_TOKENS,
-    MODELS,
-    OLLAMA_BASE_URL,
-    OPENROUTER_BASE_URL,
-    PLACEHOLDER_MARK,
-    TEMPERATURE,
-    TIMEOUTS,
-)
+from judge_lab.config import MAX_RETRIES, MAX_TOKENS, OPENROUTER_BASE_URL, TEMPERATURE, TIMEOUT_S
 from judge_lab.snippets import Snippet, load_snippets
 
 
 class ConfigError(ValueError):
-    """Fehlende oder unvollständige Konfiguration (API-Key, Modell-ID)."""
+    """Fehlende oder unvollständige Konfiguration (API-Key, Code)."""
 
 
 @dataclass(frozen=True)
@@ -133,20 +122,12 @@ class MockClient:
 # --- Fabrik -----------------------------------------------------------------
 
 
-def make_client(model_key: str, api_key: str | None) -> ChatClient | MockClient:
-    """Client für einen Eintrag aus ``config.MODELS``; prüft Key und Modell-ID vorab."""
-    if model_key not in MODELS:
-        raise ConfigError(f"Unbekanntes Modell {model_key!r}. Bekannt sind: {', '.join(MODELS)}.")
-    model = MODELS[model_key]
-    if model["provider"] == "mock":
+def make_client(modell: str, api_key: str | None) -> ChatClient | MockClient:
+    """Client für eine OpenRouter-Modell-ID; ``"mock"`` liefert den Mock-Client ohne Key."""
+    if modell == "mock":
         return MockClient()
-    if PLACEHOLDER_MARK in model["id"]:
-        raise ConfigError(
-            f"Die Modell-ID für {model['label']} ist noch ein Platzhalter ({model['id']}). "
-            "Bitte in judge_lab/config.py eintragen."
-        )
-    if model["provider"] == "ollama":
-        return ChatClient(OLLAMA_BASE_URL, "ollama", model["id"], provider="ollama", timeout_s=TIMEOUTS["ollama"])
     if not api_key:
-        raise ConfigError("Es fehlt der OpenRouter-API-Key. Bitte im Setup eintragen (siehe Folie).")
-    return ChatClient(OPENROUTER_BASE_URL, api_key, model["id"], provider="openrouter", timeout_s=TIMEOUTS["openrouter"])
+        raise ConfigError(
+            'Es fehlt der OpenRouter-Key. Bitte zuerst verbinde("CODE") mit dem Code von der Folie ausführen.'
+        )
+    return ChatClient(OPENROUTER_BASE_URL, api_key, modell, provider="openrouter", timeout_s=TIMEOUT_S)

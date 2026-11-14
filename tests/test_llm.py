@@ -80,27 +80,18 @@ def test_unreachable_server_becomes_error_result():
     assert result.error
 
 
+def test_make_client_any_openrouter_id():
+    client = make_client("openai/gpt-6-luna", "sk-test")
+    assert client.provider == "openrouter" and client.model_id == "openai/gpt-6-luna"
+
+
+def test_make_client_mock_needs_no_key():
+    assert make_client("mock", None).model_id == "mock"
+
+
 def test_make_client_missing_key():
-    with pytest.raises(ConfigError, match="API-Key"):
-        make_client("gemini", api_key="")
-
-
-def test_make_client_placeholder_id(monkeypatch):
-    monkeypatch.setitem(config.MODELS, "gemini", {**config.MODELS["gemini"], "id": "google/gemini-<aktuell>"})
-    with pytest.raises(ConfigError, match="Modell-ID"):
-        make_client("gemini", api_key="sk-test")
-
-
-def test_make_client_unknown_model():
-    with pytest.raises(ConfigError):
-        make_client("gpt-99", api_key="sk-test")
-
-
-def test_make_client_ollama_needs_no_key():
-    client = make_client("local", api_key=None)
-    assert isinstance(client, ChatClient)
-    assert client.provider == "ollama"
-    assert client.model_id == "qwen2.5-coder:3b"
+    with pytest.raises(ConfigError, match="verbinde"):
+        make_client("openai/gpt-6-luna", "")
 
 
 def _mock_answer(snippet_id, attitude="objective"):

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from judge_lab.config import ATTITUDES, PROMPTS_DIR
-from judge_lab.prompts import build_prompt, lint_challenge_prompt, prompt_hash
+from judge_lab.config import ATTITUDES
+from judge_lab.prompts import build_prompt, prompt_hash
 from judge_lab.snippets import get_snippet, load_snippets
 
 SNIPPETS = load_snippets()
@@ -86,21 +86,6 @@ def test_prompt_hash_stable():
     assert prompt_hash("  Be strict.\n") == prompt_hash("Be strict.")
     assert len(prompt_hash("Be strict.")) == 12
     assert prompt_hash("Be strict.") != prompt_hash("Be lenient.")
-
-
-@pytest.mark.parametrize("text", ["Check line 7 carefully.", "Achte auf Zeile 26!", "siehe Z. 5"])
-def test_lint_warns_on_line_numbers(text):
-    assert lint_challenge_prompt(text, SNIPPETS)
-
-
-def test_lint_warns_on_function_names():
-    warnings = lint_challenge_prompt("Look closely at quicksort and BankAccount.", SNIPPETS)
-    assert any("quicksort" in w and "BankAccount" in w for w in warnings)
-
-
-def test_lint_baseline_clean():
-    baseline = (PROMPTS_DIR / "challenge_baseline.md").read_text(encoding="utf-8")
-    assert lint_challenge_prompt(baseline, SNIPPETS) == []
 
 
 def test_prompt_snapshot():

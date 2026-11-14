@@ -29,10 +29,3 @@ def test_challenge_points():
 
 def test_weights_sum_to_one():
     assert math.isclose(sum(config.WEIGHTS.values()), 1.0)
-
-
-def test_every_group_has_a_known_model():
-    for group in config.GROUPS.values():
-        assert group["model_key"] in config.MODELS
-    for model in config.MODELS.values():
-        assert model["provider"] in ("openrouter", "ollama", "mock")
