@@ -1,0 +1,174 @@
+"""Tests für die vier Bausteine verbinde, bewerte, bewerte_alle und sende."""
+
+import json
+
+import pytest
+
+from judge_lab import bausteine
+from judge_lab.bausteine import bewerte, bewerte_alle
+from judge_lab.llm import ConfigError, LLMResult
+
+KEYS = {"code_score", "judge_score", "snippet", "komplexitaet", "modell", "prompt", "gruppe", "einreichung", "fehler"}
+
+
+@pytest.fixture(autouse=True)
+def leerer_zustand(monkeypatch):
+    monkeypatch.setattr(bausteine, "_ZUSTAND", {"gruppe": "", "key": ""})
+
+
+class FakeClient:
+    """Antwortet immer mit demselben Text bzw. Fehler."""
+
+    provider = "openrouter"
+    model_id = "fake/model"
+
+    def __init__(self, text="", error=None):
+        self.text, self.error = text, error
+
+    def complete(self, messages):
+        return LLMResult(self.text, 0.1, 10, 10, self.error)
+
+
+def use_client(monkeypatch, client):
+    monkeypatch.setattr(bausteine, "make_client", lambda modell, key: client)
+    bausteine._ZUSTAND.update(gruppe="Gruppe 1", key="sk-test")
+
+
+# --- verbinde -----------------------------------------------------------------
+
+
+def test_verbinde_sets_group(monkeypatch, capsys):
+    monkeypatch.setattr(bausteine, "_join", lambda code, **kw: ("Gruppe 2", "sk-x"))
+    bausteine.verbinde(" k7qx ")
+    assert bausteine._ZUSTAND == {"gruppe": "Gruppe 2", "key": "sk-x"}
+    assert "Gruppe 2" in capsys.readouterr().out
+
+
+def test_verbinde_wrong_code_prints_no_traceback(monkeypatch, capsys):
+    def fail(code, **kw):
+        raise ConfigError("Code unbekannt – bitte den Code noch einmal von der Folie abtippen.")
+
+    monkeypatch.setattr(bausteine, "_join", fail)
+    bausteine.verbinde("XXXX")
+    assert "Code unbekannt" in capsys.readouterr().out
+    assert bausteine._ZUSTAND == {"gruppe": "", "key": ""}
+
+
+def test_verbinde_notfall_with_key_and_group():
+    bausteine.verbinde(key="sk-y", gruppe="Team Rot")
+    assert bausteine._ZUSTAND == {"gruppe": "Team Rot", "key": "sk-y"}
+
+
+def test_verbinde_notfall_needs_both(capsys):
+    bausteine.verbinde(key="sk-y")
+    assert "gruppe" in capsys.readouterr().out
+    assert bausteine._ZUSTAND == {"gruppe": "", "key": ""}
+
+
+def test_verbinde_again_switches_group(monkeypatch):
+    answers = iter([("Gruppe 1", "sk-1"), ("Gruppe 3", "sk-3")])
+    monkeypatch.setattr(bausteine, "_join", lambda code, **kw: next(answers))
+    bausteine.verbinde("AAAA")
+    bausteine.verbinde("BBBB")
+    assert bausteine._ZUSTAND == {"gruppe": "Gruppe 3", "key": "sk-3"}
+
+
+# --- bewerte ------------------------------------------------------------------
+
+
+def test_bewerte_mock_returns_both_scores():
+    r = bewerte("Sei streng.", snippet="bank_account", modell="mock")
+    assert r["fehler"] is None and r["code_score"] == 6.0 and r["judge_score"] == 1  # Mock: 1 Treffer, 1 Fehlalarm
+    assert set(r) == KEYS
+    assert (r["snippet"], r["komplexitaet"], r["modell"], r["prompt"]) == ("bank_account", "", "mock", "Sei streng.")
+
+
+def test_bewerte_default_model_is_gpt6_luna(monkeypatch):
+    seen = []
+    monkeypatch.setattr(bausteine, "make_client", lambda modell, key: seen.append(modell) or FakeClient("{}"))
+    bausteine._ZUSTAND.update(gruppe="Gruppe 1", key="sk-test")
+    assert bewerte("x")["modell"] == "openai/gpt-6-luna"
+    assert seen == ["openai/gpt-6-luna"]
+
+
+def test_bewerte_unknown_snippet_lists_valid_names():
+    r = bewerte("x", snippet="quicksort", modell="mock")
+    assert r["code_score"] is None and r["judge_score"] is None
+    assert "qb_quicksort" in r["fehler"] and "bank_account" in r["fehler"]
+
+
+def test_bewerte_without_verbinde_gives_hint():
+    r = bewerte("x")
+    assert "verbinde" in r["fehler"] and r["judge_score"] is None
+
+
+def test_bewerte_empty_prompt():
+    assert "leer" in bewerte("  ", modell="mock")["fehler"]
+
+
+def test_bewerte_llm_error_is_not_zero(monkeypatch, capsys):
+    use_client(monkeypatch, FakeClient(error="LLM-Aufruf fehlgeschlagen: 401 invalid key"))
+    r = bewerte("x")
+    assert r["judge_score"] is None and r["code_score"] is None
+    assert "nicht erreichbar" in r["fehler"] and "401" in r["fehler"]
+    assert "bank_account" in capsys.readouterr().out
+
+
+def test_bewerte_unreadable_answer(monkeypatch):
+    use_client(monkeypatch, FakeClient("das ist kein JSON"))
+    r = bewerte("x")
+    assert r["judge_score"] is None and "nicht lesbar" in r["fehler"]
+
+
+def test_bewerte_missing_dimension_keeps_judge_score(monkeypatch):
+    answer = {"findings": [{"line_start": 1, "line_end": 1, "category": "bug"}],
+              "scores": {"functional_correctness": 4, "reliability": 5, "maintainability": 6}}
+    use_client(monkeypatch, FakeClient(json.dumps(answer)))
+    r = bewerte("x", snippet="qb_bitcount")
+    assert r["code_score"] is None and r["judge_score"] is not None and r["fehler"] is None
+
+
+def test_bewerte_uses_no_tests_in_prompt(monkeypatch):
+    calls = []
+    original = bausteine.build_prompt
+    monkeypatch.setattr(bausteine, "build_prompt", lambda *a, **kw: calls.append(kw) or original(*a, **kw))
+    bewerte("Sei streng.", modell="mock")
+    assert calls == [{"with_tests": False, "custom_block": "Sei streng."}]
+
+
+def test_bewerte_each_call_is_its_own_submission():
+    assert bewerte("x", modell="mock")["einreichung"] != bewerte("x", modell="mock")["einreichung"]
+
+
+# --- bewerte_alle -------------------------------------------------------------
+
+
+def test_bewerte_alle_five_snippets_sorted_and_one_submission():
+    rs = bewerte_alle("Sei streng.", modell="mock")
+    assert [r["komplexitaet"] for r in rs] == ["L1", "L2", "L3", "L4", "L5"]
+    assert [r["snippet"] for r in rs] == ["qb_bitcount", "qb_quicksort", "qb_levenshtein",
+                                          "qb_shunting_yard", "qb_next_permutation"]
+    assert len({r["einreichung"] for r in rs}) == 1
+    assert all(set(r) == KEYS for r in rs)
+
+
+def test_bewerte_alle_one_failure_keeps_others():
+    rs = bewerte_alle("x", modell="mock")  # Mock: qb_levenshtein liefert immer kaputtes JSON
+    assert rs[2]["snippet"] == "qb_levenshtein" and rs[2]["fehler"]
+    assert all(r["fehler"] is None for i, r in enumerate(rs) if i != 2)
+
+
+def test_bewerte_alle_without_verbinde_gives_hint():
+    rs = bewerte_alle("x")
+    assert len(rs) == 5 and all("verbinde" in r["fehler"] for r in rs)
+
+
+# --- öffentliche Schnittstelle ------------------------------------------------
+
+
+@pytest.mark.xfail(reason="sende folgt in Task 4", strict=True)
+def test_public_api_is_exactly_four():
+    import judge_lab
+
+    public = sorted(n for n in dir(judge_lab) if not n.startswith("_") and callable(getattr(judge_lab, n)))
+    assert public == ["bewerte", "bewerte_alle", "sende", "verbinde"]
