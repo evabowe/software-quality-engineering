@@ -2,10 +2,8 @@
 
 Hands-on „LLM-as-a-Judge für Softwarequalität“: Gruppen schreiben Judge-Prompts und lassen Code-Beispiele mit bekannten Fehlern über OpenRouter bewerten. Gemessen wird die Note für den Code (Code-Score) und wie gut das Modell die echten Fehler findet (Judge-Score). Die Ergebnisse erscheinen live auf einem Dashboard.
 
-| Für wen | Anleitung |
-|---|---|
-| Notebook-Autorin: die vier Funktionen `verbinde`, `bewerte`, `bewerte_alle`, `sende` | [docs/BAUSTEINE.md](docs/BAUSTEINE.md) |
-| Dashboard einrichten und testen | [docs/DASHBOARD_TEST.md](docs/DASHBOARD_TEST.md) |
+Dashboard URL: https://script.google.com/macros/s/AKfycbwXy2n88oda5nLpq1J2SVzG5J3D5SX0wPi82gtKlSvz2jdw5p1dIYabfz0ef8Ks9d19Zw/exec
+
 
 ```bash
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[dev]"
