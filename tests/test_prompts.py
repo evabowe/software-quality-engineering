@@ -26,6 +26,17 @@ def test_messages_structure():
     assert user["content"].rstrip().endswith('return an empty "findings" list.')
 
 
+def test_scale_is_a_frame_not_a_rubric():
+    # Wie streng bewertet wird, entscheidet der Prompt der Gruppe – die Skala gibt nur Dimensionen und Bereich vor.
+    system, _ = build_prompt(get_snippet("qb_bitcount"), PROMPT)
+    for dimension in ("functional_correctness", "reliability", "maintainability", "readability"):
+        assert dimension in system["content"]
+    assert "from 0 to 10" in system["content"]
+    assert "Anchors" not in system["content"]
+    assert not re.search(r"\b[13579]–\d+\b", system["content"])  # keine Punktebänder wie „5–6“
+    assert "40%" not in system["content"]
+
+
 def test_prompt_is_stripped():
     system, _ = build_prompt(get_snippet("qb_bitcount"), "\n  Sei streng.  \n")
     assert system["content"].startswith("Sei streng.\n")
