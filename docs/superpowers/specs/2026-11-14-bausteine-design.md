@@ -151,3 +151,13 @@ Die Arbeit läuft **direkt auf `feature/interactive-session`** (Evas Entscheidun
 ## Dem Builder überlassen
 
 Modulname, interne Aufteilung, Reload-Intervall und Diagramm-Bibliothek des Dashboards (Chart.js ist heute schon eingebunden), wie der lange Prompt in der Kachel lesbar wird, ob `doPost` Listen annimmt, Formulierung der Meldungen (deutsch, kurz, ohne Fachjargon).
+
+## Nachtrag 14.11. abends (nach Evas Live-Test, mit Eva abgestimmt)
+
+1. **Antwortlimit:** GPT-6 Luna ist ein Reasoning-Modell; seine Denk-Tokens zählen in `max_tokens`. Mit 2000 wurde die Antwort bei strengen Rollen-Prompts abgeschnitten (gemessen: `finish_reason=length`, 1875 Reasoning-Tokens). `MAX_TOKENS` steigt auf 16000 (gemessen: max. ~2500 gebraucht; Kosten ≤ 0,01 $ pro Aufruf). Wird eine Antwort trotzdem abgeschnitten, meldet `bewerte` das ausdrücklich („Antwort abgeschnitten“) statt „nicht lesbar“.
+2. **Keine Prompt-Vorlagen:** Die Studierenden schreiben alle Prompts selbst; in Runde 2 liegt der Fokus darauf, eine Rolle zu vergeben. Entfernt werden `prompts/attitudes/`, `prompts/original/`, `prompts/ADAPTATION.md`, `prompts/challenge_baseline.md`, `prompts/tests_block.md`, der Parameter `with_tests` und alles zu Haltungen im Code sowie der Abschnitt „ai-as-a-judge“ in `THIRD_PARTY_NOTICES.md` (Evas Vorgabe: kein Code im Repo, der nicht gebraucht wird).
+3. **Ground Truth am Dashboard:** `bewerte` liefert zusätzlich `gefunden` (echte Fehler gefunden), `fehler_gesamt` (bekannte Fehler im Snippet), `fehlalarme` und `judge_max` (= 2 × `fehler_gesamt`); diese vier Felder gehen auch ans Sheet.
+   - Kacheln Runde 1/2: „Judge-Score 3 von max. 12 · Code-Score 5,2 von 10 · ✔ 2 von 6 echten Fehlern gefunden · ✘ 1 Fehlalarm“. Runde 4: dieselben Werte summiert über die fünf Snippets.
+   - Runde 3: Judge-Achse fest von 0 bis zum Maximum pro Snippet (2), gestrichelte Linie „max.“, darunter „gefunden 3 von 5 · 2 Fehlalarme“.
+   - In jeder Runde über den Kacheln eine Erklärung: Code-Score = Note des Modells für den Code (0–10); Judge-Score = 2 Punkte je gefundenem echten Fehler, −1 je Fehlalarm, gemessen an den bekannten Fehlern.
+   - Fehlalarm = gemeldeter Bug ohne echten Fehler an der Stelle; reine Stil-Hinweise zählen nicht.
