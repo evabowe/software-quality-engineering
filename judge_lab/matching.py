@@ -1,4 +1,4 @@
-"""Matching der Judge-Findings gegen die Ground Truth (Regeln aus dem Konzept, Abschnitt 8.6).
+"""Matching der Judge-Findings gegen die Ground Truth.
 
 1. Ein Finding trifft Defekt D, wenn sich seine Zeilen mit ``D.accept_lines`` überschneiden.
 2. Exakte Überschneidung mit ``D.lines`` geht vor dem Toleranzbereich, danach zählt der

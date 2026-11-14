@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from judge_lab.config import POINTS
 from judge_lab.scoreboard import RECORD_FIELDS
 
 SCOREBOARD_DIR = Path(__file__).parent.parent / "scoreboard"
@@ -24,11 +23,9 @@ def _js_constant(name):
 
 
 def test_fields_match():
-    assert tuple(_js_constant("FIELDS")) == RECORD_FIELDS
-
-
-def test_points_match():
-    assert _js_constant("POINTS") == POINTS
+    fields = tuple(_js_constant("FIELDS"))
+    assert fields[:-1] == RECORD_FIELDS
+    assert fields[-1] == "session_id"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js nicht installiert")

@@ -2,241 +2,216 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    :root { --ink: #1f2933; --muted: #616e7c; --line: #d9e2ec; --bg: #ffffff; --soft: #f5f7fa; --accent: #2f5fd0; }
+    /* Beamertauglich: helles Theme, Schrift ≥ 18 px, kein horizontales Scrollen bei 1280 × 720.
+       Code-Score = Blau, Judge-Score = Orange (wie im abgestimmten Entwurf). */
+    :root { --ink: #1f2933; --muted: #52606d; --line: #d9e2ec; --bg: #ffffff; --soft: #f5f7fa; --accent: #2f5fd0;
+            --code: #2a6fdb; --judge: #c25e00; --lead: #f0b429; }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 24px 32px 64px; font: 20px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-           color: var(--ink); background: var(--bg); }
-    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px 32px; margin-bottom: 8px; }
-    h1 { font-size: 34px; margin: 0; }
-    h2 { font-size: 26px; margin: 40px 0 4px; }
-    .hint { color: var(--muted); font-size: 17px; margin: 0 0 12px; }
-    .status { color: var(--muted); font-size: 17px; }
-    nav { position: sticky; top: 0; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line);
-          display: flex; flex-wrap: wrap; gap: 8px; z-index: 1; }
-    nav a { color: var(--accent); text-decoration: none; font-size: 17px; padding: 4px 10px; border-radius: 6px;
-            background: var(--soft); }
-    label { font-size: 17px; }
-    button { font: inherit; font-size: 17px; padding: 6px 14px; border: 1px solid var(--accent); color: var(--accent);
-             background: #fff; border-radius: 6px; cursor: pointer; }
-    table { border-collapse: collapse; margin: 8px 0; }
-    th, td { border: 1px solid var(--line); padding: 8px 14px; text-align: center; }
-    th { background: var(--soft); font-weight: 600; }
-    td.left, th.left { text-align: left; }
-    .grid { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
-    .empty { color: var(--muted); font-style: italic; }
-    .prompt { white-space: pre-wrap; text-align: left; font: 15px/1.4 ui-monospace, Menlo, monospace;
-              max-width: 70ch; max-height: 18em; overflow: auto; }
-    .chart { max-width: 900px; }
-    #resolution { display: none; }
-    section { scroll-margin-top: 70px; }
+    body { margin: 0; padding: 12px 24px 24px; font: 20px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+           color: var(--ink); background: var(--bg); overflow-wrap: anywhere; }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
+    h1 { font-size: 28px; margin: 0; }
+    .status { color: var(--muted); font-size: 18px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+    nav button { font: inherit; font-size: 19px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px;
+                 background: var(--soft); color: var(--ink); cursor: pointer; }
+    nav button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 0; background: var(--bg); }
+    .tile.empty { opacity: .55; }
+    .tile.lead { border: 3px solid var(--lead); box-shadow: 0 0 0 3px rgba(240, 180, 41, .25); }
+    .tile h2 { font-size: 24px; margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; }
+    .badge { font-size: 18px; font-weight: 600; color: #7a5a00; }
+    .nums { display: flex; gap: 32px; margin-bottom: 6px; }
+    .num small { display: block; font-size: 18px; color: var(--muted); }
+    .num b { font-size: 40px; line-height: 1.1; }
+    .num span { font-size: 18px; color: var(--muted); }
+    .truth { font-size: 18px; margin: 0 0 6px; }
+    .num.code b { color: var(--code); }
+    .num.judge b { color: var(--judge); }
+    .prompt { font: 18px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--soft);
+              border-radius: 8px; padding: 6px 10px; max-height: 4.2em; overflow: hidden; cursor: pointer;
+              white-space: pre-wrap; }
+    .prompt.open { max-height: none; }
+    .meta { font-size: 18px; color: var(--muted); margin-top: 4px; }
+    .chart { position: relative; height: 112px; }
+    .curve .prompt { max-height: 1.6em; }
+    .curve .prompt.open { max-height: none; }
+    .legend { font-size: 18px; color: var(--muted); margin: 0 0 8px; }
+    .legend b { color: var(--ink); }
+    .legend i { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin: 0 6px 0 14px; }
+    @media (max-width: 760px) { .tiles { grid-template-columns: minmax(0, 1fr); } body { padding: 12px 16px; } }
   </style>
 </head>
 <body>
   <header>
     <h1>Scoreboard · LLM-as-a-Judge</h1>
-    <span class="status">Session: <strong id="session"></strong> · <span id="status">lädt …</span></span>
-    <label><input type="checkbox" id="precomputed"> Vorab-Daten einblenden</label>
+    <span class="status">Session: <strong id="session">–</strong> · <span id="status">lädt …</span></span>
   </header>
   <nav>
-    <a href="#rq2">RQ2 Haltung</a><a href="#rq1">RQ1 Übereinstimmung</a><a href="#rq3">RQ3 Komplexität</a>
-    <a href="#extra">Tests &amp; Contamination</a><a href="#prognosis">Prognosen</a>
-    <a href="#leaderboard">Leaderboard</a><a href="#gallery">Prompt-Galerie</a><a href="#resolution-box">Auflösung</a>
+    <button data-round="1">1 Frei ausprobieren</button>
+    <button data-round="2">2 Rollen vergleichen</button>
+    <button data-round="3">3 Komplexität</button>
+    <button data-round="4">4 AI Challenge</button>
   </nav>
-
-  <section id="rq2">
-    <h2>RQ2 · Verschiebt die Haltung die Note?</h2>
-    <p class="hint">Ø gewichteter Score (0–10) je Modell und Haltung, Auftrag 1</p>
-    <div id="scoreHeatmap"></div>
-    <h2>… und auch die Fehlerfindung?</h2>
-    <p class="hint">Links Ø Recall (Anteil gefundener Defekte), rechts Ø False Positives pro Lauf</p>
-    <div class="grid"><div id="recallHeatmap"></div><div id="fpHeatmap"></div></div>
-  </section>
-
-  <section id="rq1">
-    <h2>RQ1 · Wie einig sind sich die Judges?</h2>
-    <p class="hint">Anteil der Läufe, in denen ein Modell den Defekt gefunden hat</p>
-    <div id="defectByModel"></div>
-    <p class="hint">Spearman-ρ der Scores zwischen den Modellen (gleiche Snippets, Haltungen, Testvarianten)</p>
-    <div id="spearman"></div>
-  </section>
-
-  <section id="rq3">
-    <h2>RQ3 · Recall über die Komplexitätsstufe</h2>
-    <p class="hint">QuixBugs-Snippets L1–L5; bank_account hat keine Stufe</p>
-    <div class="chart"><canvas id="levelChart" height="110"></canvas></div>
-  </section>
-
-  <section id="extra">
-    <h2>Hilft der Testcode als Kontext?</h2>
-    <div id="testsDelta"></div>
-    <h2>Öffentlicher Benchmark vs. unbekannter Code</h2>
-    <p class="hint">QuixBugs ist seit 2017 öffentlich (vermutlich in den Trainingsdaten), bank_account nicht</p>
-    <div id="publicVsPrivate"></div>
-    <h2>Formattreue</h2>
-    <p class="hint">Antworten, die auch nach dem Reparatur-Versuch kein lesbares JSON waren; Läufe mit Infrastrukturfehlern zählen nirgends in die Wertung</p>
-    <div id="parseFailures"></div>
-  </section>
-
-  <section id="prognosis">
-    <h2>Prognosen</h2>
-    <div id="predictions"></div>
-  </section>
-
-  <section id="leaderboard">
-    <h2>Leaderboard Prompt-Challenge</h2>
-    <p class="hint">Beste Einreichung je Gruppe · Punkte = 2 × Treffer − 1 × Fehlalarm über alle Snippets</p>
-    <div id="leaderboardTable"></div>
-  </section>
-
-  <section id="gallery">
-    <h2>Prompt-Galerie</h2>
-    <div id="galleryTable"></div>
-  </section>
-
-  <section id="resolution-box">
-    <h2>Auflösung</h2>
-    <button id="reveal">Ground Truth anzeigen</button>
-    <div id="resolution"></div>
-  </section>
+  <p class="legend" id="legend"></p>
+  <div class="tiles" id="tiles"></div>
 
   <script>
-    const SESSION = <?= session ?>;
     const REFRESH_MS = 10000;
-    let chart = null;
+    let round = String(window.INITIAL_VIEW || 1);
+    let data = null;
+    let charts = [];
+    const openPrompts = new Set();
 
     function esc(value) {
       return String(value === null || value === undefined ? "" : value)
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
-    function fmt(value, digits) {
+    function fmt(value) {
       if (value === null || value === undefined || value === "") return "–";
-      return Number(value).toLocaleString("de-DE", { maximumFractionDigits: digits === undefined ? 2 : digits });
+      return Number(value).toLocaleString("de-DE", { maximumFractionDigits: 2 });
     }
 
-    // Farbskala von Rot (niedrig) über Gelb zu Grün (hoch); umgekehrt für „weniger ist besser“.
-    function color(value, max, invert) {
-      if (value === null || value === undefined) return "#ffffff";
-      let t = Math.max(0, Math.min(1, value / max));
-      if (invert) t = 1 - t;
-      return "hsl(" + Math.round(t * 120) + ", 70%, 85%)";
+    function ago(iso) {
+      const t = Date.parse(iso);
+      if (!t) return "";
+      const minutes = Math.max(0, Math.round((Date.now() - t) / 60000));
+      return minutes < 1 ? "gerade eben" : "vor " + minutes + " min";
     }
 
-    function table(headers, rows) {
-      if (!rows.length) return '<p class="empty">Noch keine Daten.</p>';
-      const head = "<tr>" + headers.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr>";
-      return "<table>" + head + rows.join("") + "</table>";
+    function fehlalarme(n) {
+      return n === 1 ? "1 Fehlalarm" : fmt(n) + " Fehlalarme";
     }
 
-    function heatmap(data, models, attitudes, max, invert, digits) {
-      return table([""].concat(attitudes), models.map((m) =>
-        "<tr><th class='left'>" + esc(m) + "</th>" + attitudes.map((a) => {
-          const v = data[m][a];
-          return "<td style='background:" + color(v, max, invert) + "'>" + fmt(v, digits) + "</td>";
-        }).join("") + "</tr>"));
+    function truth(t, long) {
+      if (t.gefunden === null || t.gefunden === undefined) return "";
+      const found = long ? fmt(t.gefunden) + " von " + fmt(t.fehler_gesamt) + " echten Fehlern gefunden"
+                         : "gefunden " + fmt(t.gefunden) + " von " + fmt(t.fehler_gesamt);
+      return "<div class='truth'>✔ " + found + " · ✘ " + fehlalarme(t.fehlalarme) + "</div>";
     }
 
-    function render(d) {
-      document.getElementById("status").textContent =
-        d.runs + " Läufe · aktualisiert " + new Date().toLocaleTimeString("de-DE");
-      const models = d.models;
+    function promptBox(group, text) {
+      const open = openPrompts.has(group) ? " open" : "";
+      return "<div class='prompt" + open + "' data-group='" + esc(group) + "' title='" + esc(text) + "'>" +
+        esc(text) + "</div>";
+    }
 
-      document.getElementById("scoreHeatmap").innerHTML = heatmap(d.scoreHeatmap, models, d.attitudes, 10, false, 1);
-      document.getElementById("recallHeatmap").innerHTML = heatmap(d.recallHeatmap, models, d.attitudes, 1, false, 2);
-      document.getElementById("fpHeatmap").innerHTML = heatmap(d.fpHeatmap, models, d.attitudes, 3, true, 1);
+    function emptyTile(group) {
+      const text = data.connected[group] ? "verbunden – noch nichts gesendet" : "noch nichts gesendet";
+      return "<div class='tile empty'><h2>" + esc(group) + "</h2><div class='meta'>" + text + "</div></div>";
+    }
 
-      document.getElementById("defectByModel").innerHTML = table(["Snippet", "Defekt", "Art"].concat(models),
-        d.defectByModel.map((row) => "<tr><td class='left'>" + esc(row.snippet_id) + "</td><td>" + esc(row.defect_id) +
-          "</td><td>" + esc(row.kind) + "</td>" + models.map((m) =>
-            "<td style='background:" + color(row.rates[m], 1) + "'>" + fmt(row.rates[m], 2) + "</td>").join("") + "</tr>"));
-      document.getElementById("spearman").innerHTML = table([""].concat(models), models.map((a) =>
-        "<tr><th class='left'>" + esc(a) + "</th>" + models.map((b) => "<td>" + fmt(d.spearman[a][b], 2) + "</td>").join("") + "</tr>"));
+    function scoreTile(group, t, extra, lead) {
+      return "<div class='tile" + (lead ? " lead" : "") + "'><h2><span>" + esc(group) + "</span>" +
+        (lead ? "<span class='badge'>🏆 vorne</span>" : "") + "</h2>" +
+        "<div class='nums'><div class='num judge'><small>Judge-Score</small><b>" + fmt(t.judge_score) + "</b>" +
+        (t.judge_max === null || t.judge_max === undefined ? "" : " <span>von max. " + fmt(t.judge_max) + "</span>") +
+        "</div><div class='num code'><small>Code-Score</small><b>" + fmt(t.code_score) + "</b> <span>von 10</span>" +
+        "</div></div>" + truth(t, true) +
+        promptBox(group, t.prompt) +
+        "<div class='meta'>" + esc(extra) + " · " + esc(t.modell) + " · " + ago(t.timestamp) + "</div></div>";
+    }
 
-      const datasets = models.map((m) => ({ label: m, data: d.recallByLevel.series[m], spanGaps: true, tension: 0.2 }));
-      if (window.Chart) {
-        if (!chart) {
-          chart = new Chart(document.getElementById("levelChart"), {
-            type: "line",
-            data: { labels: d.recallByLevel.levels, datasets: datasets },
-            options: { animation: false, scales: { y: { min: 0, max: 1, title: { display: true, text: "Recall" } } },
-                       plugins: { legend: { labels: { font: { size: 16 } } } } },
-          });
-        } else {
-          chart.data.datasets = datasets;
-          chart.update();
-        }
-      }
+    function curveTile(group, c, index) {
+      return "<div class='tile curve'><h2>" + esc(group) + "</h2>" +
+        "<div class='chart'><canvas id='chart-" + index + "'></canvas></div>" +
+        truth(c, false) + promptBox(group, c.prompt) +
+        "<div class='meta'>" + esc(c.modell) + " · " + ago(c.timestamp) + "</div></div>";
+    }
 
-      document.getElementById("testsDelta").innerHTML = table(
-        ["Modell", "Recall mit Tests", "Recall ohne", "Δ Recall", "FP mit Tests", "FP ohne"],
-        models.map((m) => {
-          const t = d.testsDelta[m];
-          const delta = t.recallWith === null || t.recallWithout === null ? null : t.recallWith - t.recallWithout;
-          return "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(t.recallWith) + "</td><td>" + fmt(t.recallWithout) +
-            "</td><td>" + fmt(delta) + "</td><td>" + fmt(t.fpWith, 1) + "</td><td>" + fmt(t.fpWithout, 1) + "</td></tr>";
-        }));
-      document.getElementById("publicVsPrivate").innerHTML = table(["Modell", "Recall QuixBugs", "Recall bank_account"],
-        models.map((m) => "<tr><th class='left'>" + esc(m) + "</th><td>" + fmt(d.publicVsPrivate[m].quixbugs) +
-          "</td><td>" + fmt(d.publicVsPrivate[m].bank_account) + "</td></tr>"));
-      const failureModels = Array.from(new Set(Object.keys(d.parseFailures).concat(Object.keys(d.infraErrors)))).sort();
-      document.getElementById("parseFailures").innerHTML = table(["Modell", "unlesbar", "gewertete Läufe", "Fehler (Key, Limit, Netz)"],
-        failureModels.map((m) => {
-          const p = d.parseFailures[m] || { failed: 0, total: 0 };
-          return "<tr><th class='left'>" + esc(m) + "</th><td>" + p.failed + "</td><td>" + p.total +
-            "</td><td>" + (d.infraErrors[m] || 0) + "</td></tr>";
-        }));
+    function drawChart(index, c) {
+      const canvas = document.getElementById("chart-" + index);
+      if (!canvas || !window.Chart) return;
+      const labels = c.points.map((p) => [p.komplexitaet, p.snippet.replace(/^qb_/, "")]);
+      const judgeMax = c.judge_max === null || c.judge_max === undefined ? 2 : c.judge_max;
+      const judgeValues = c.points.map((p) => p.judge_score).filter((v) => v !== null);
+      const judgeMin = Math.min(0, ...judgeValues);
+      charts.push(new Chart(canvas, {
+        type: "line",
+        data: { labels, datasets: [
+          { label: "Code-Score", data: c.points.map((p) => p.code_score), yAxisID: "code",
+            borderColor: "#2a6fdb", backgroundColor: "#2a6fdb", borderWidth: 3, pointRadius: 5, spanGaps: true },
+          { label: "Judge-Score", data: c.points.map((p) => p.judge_score), yAxisID: "judge",
+            borderColor: "#c25e00", backgroundColor: "#c25e00", borderWidth: 3, pointRadius: 5, spanGaps: true },
+          { label: "max.", data: c.points.map(() => judgeMax), yAxisID: "judge", borderColor: "#c25e00",
+            borderDash: [6, 5], borderWidth: 1.5, pointRadius: 0 },
+        ] },
+        options: {
+          animation: false, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { font: { size: 14 } } },
+            code: { position: "left", min: 0, max: 10, title: { display: true, text: "Code", color: "#2a6fdb" },
+                    ticks: { color: "#2a6fdb", font: { size: 14 } } },
+            judge: { position: "right", grid: { drawOnChartArea: false }, min: judgeMin, max: judgeMax,
+                     title: { display: true, text: "Judge", color: "#c25e00" },
+                     ticks: { color: "#c25e00", font: { size: 14 }, precision: 0 } },
+          },
+        },
+      }));
+    }
 
-      document.getElementById("predictions").innerHTML = table(["Gruppe", "Bester Judge (Prognose)", "strict vs. lenient"],
-        d.predictions.map((p) => "<tr><td class='left'>" + esc(p.group) + "</td><td>" + esc(p.best_model) +
-          "</td><td class='left'>" + esc(p.strict_vs_lenient) + "</td></tr>"));
-
-      document.getElementById("leaderboardTable").innerHTML = table(
-        ["Platz", "Gruppe", "Modell", "Einreichung", "Punkte", "Punkte Referenzmodell"],
-        d.leaderboard.map((e, i) => "<tr><td>" + (i + 1) + "</td><td class='left'>" + esc(e.group) + "</td><td>" +
-          esc(e.model_key) + "</td><td>" + fmt(e.submission_no, 0) + "</td><td><strong>" + fmt(e.points, 0) +
-          "</strong></td><td>" + fmt(e.reference_points, 0) + "</td></tr>"));
-      document.getElementById("galleryTable").innerHTML = table(["Gruppe", "Nr.", "Punkte", "Referenz", "Prompt"],
-        d.gallery.map((g) => "<tr><td class='left'>" + esc(g.group) + "</td><td>" + fmt(g.submission_no, 0) + "</td><td>" +
-          fmt(g.points, 0) + "</td><td>" + fmt(g.reference_points, 0) + "</td><td class='prompt'>" +
-          esc(g.prompt_text) + "</td></tr>"));
-
-      document.getElementById("resolution").innerHTML = table(["Snippet", "Defekt", "Art", "Zeilen", "Beschreibung"],
-        d.resolution.map((r) => "<tr><td class='left'>" + esc(r.snippet_id) + "</td><td>" + esc(r.defect_id) +
-          "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.lines) + "</td><td class='left'>" + esc(r.description) + "</td></tr>"));
+    function render() {
+      document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.round === round));
+      if (!data) return;
+      document.getElementById("session").textContent = data.session || "–";
+      charts.forEach((chart) => chart.destroy());
+      charts = [];
+      const tiles = data.rounds[round] || {};
+      const legend = document.getElementById("legend");
+      const explain = "<b>Code-Score</b>: Note des Modells für den Code (0–10) · <b>Judge-Score</b>: +2 je gefundenem " +
+        "echten Fehler, −1 je Fehlalarm";
+      legend.innerHTML = explain + (round === "3"
+        ? "<br><i style='background:var(--code)'></i>Code-Score (links)<i style='background:var(--judge)'></i>" +
+          "Judge-Score (rechts, gestrichelt = max.)"
+        : round === "4" ? "<br>Runde 4: Judge-Score und Treffer summiert über 5 Snippets, Code-Score = Durchschnitt" : "");
+      const html = data.groups.map((g, i) => {
+        const t = tiles[g];
+        if (!t) return emptyTile(g);
+        if (round === "3") return curveTile(g, t, i);
+        if (round === "4") return scoreTile(g, t, t.n + "/5 Snippets", data.leaders.indexOf(g) >= 0);
+        return scoreTile(g, t, t.snippet, false);
+      });
+      document.getElementById("tiles").innerHTML = html.join("");
+      if (round === "3") data.groups.forEach((g, i) => { if (tiles[g]) drawChart(i, tiles[g]); });
+      document.querySelectorAll(".prompt").forEach((box) => box.addEventListener("click", () => {
+        const group = box.dataset.group;
+        if (openPrompts.has(group)) openPrompts.delete(group); else openPrompts.add(group);
+        box.classList.toggle("open");
+      }));
     }
 
     function load() {
+      const status = document.getElementById("status");
       if (!window.google || !google.script) {
-        document.getElementById("status").textContent = "Nur als Apps-Script-Web-App lauffähig (siehe DEPLOY.md).";
+        status.textContent = "Nur als Apps-Script-Web-App lauffähig (siehe docs/DASHBOARD_TEST.md).";
         return;
       }
       google.script.run
-        .withSuccessHandler(render)
-        .withFailureHandler((err) => {
-          document.getElementById("status").textContent = "Fehler beim Laden: " + err.message;
+        .withSuccessHandler((d) => {
+          data = d;
+          status.textContent = "aktualisiert " + new Date().toLocaleTimeString("de-DE");
+          render();
         })
-        .getData(SESSION, document.getElementById("precomputed").checked);
+        .withFailureHandler((err) => { status.textContent = "Fehler beim Laden: " + err.message; })
+        .getData();
     }
 
-    // Apps Script zeigt die Seite in einem iframe; Sprunglinks (#rq2 …) navigieren dort nicht
-    // zuverlässig. Deshalb scrollen die Links per Skript zum Abschnitt.
-    document.querySelectorAll("nav a").forEach((link) => {
-      link.addEventListener("click", (event) => {
-        event.preventDefault();
-        const target = document.getElementById(link.getAttribute("href").slice(1));
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
+    function showRound(n) {
+      round = String(n);
+      render();
+      window.scrollTo(0, 0);
+    }
 
-    document.getElementById("session").textContent = SESSION;
-    document.getElementById("precomputed").addEventListener("change", load);
-    document.getElementById("reveal").addEventListener("click", () => {
-      document.getElementById("resolution").style.display = "block";
-      document.getElementById("reveal").style.display = "none";
+    document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => showRound(b.dataset.round)));
+    document.addEventListener("keydown", (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (/^[1-4]$/.test(event.key)) showRound(event.key);
     });
+    render();
     load();
     setInterval(load, REFRESH_MS);
   </script>

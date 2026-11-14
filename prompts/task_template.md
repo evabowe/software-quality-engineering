@@ -7,5 +7,5 @@ The numbers on the left (`  7 | ...`) are line numbers; they are not part of the
 ```python
 {code_numbered}
 ```
-{tests_block}
+
 Report every defect you find as a finding, then score each dimension of the evaluation scale.

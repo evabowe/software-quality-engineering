@@ -2,59 +2,41 @@
  * Scoreboard für das Hands-on „LLM-as-a-Judge“ (Google Apps Script, V8).
  *
  * Tabs im Sheet:
- *   runs     – eine Zeile pro LLM-Lauf, Kopfzeile = FIELDS (wird automatisch angelegt)
- *   config   – Schlüssel/Wert-Paare: token, session_id (aktive Session)
- *   defects  – Ground Truth, per Upload aus dem Instructor-Notebook (für RQ1-Matrix und Auflösung)
+ *   runs    – eine Zeile pro bewertetem Snippet, Kopfzeile = FIELDS (wird automatisch angelegt)
+ *   config  – Schlüssel/Wert-Paare: token, session_id (aktive Session)
+ *   keys    – Gruppencodes: code | group | openrouter_key | active (privat, nur dieses Skript liest ihn)
+ *   joins   – erfolgreiche Joins: timestamp | session_id | group (wird automatisch angelegt)
  *
- * doPost  – nimmt Läufe ({token, record}) oder die Ground Truth ({token, defects}) an
- * doGet   – ohne Parameter: Dashboard; ?format=json[&session=…][&precomputed=1]: aggregierte Daten
+ * doPost – nimmt Ergebnisse an: {token, records: [...]}; session_id setzt das Skript aus config
+ * doGet  – ohne Parameter: Dashboard; ?format=json: aggregierte Daten;
+ *          ?action=join&code=…&token=…: Gruppe und Key zum Gruppencode
  */
 
-// Gleiche Reihenfolge wie RECORD_FIELDS in judge_lab/scoreboard.py (Test: tests/test_scoreboard_contract.py)
+// Gleiche Reihenfolge wie RECORD_FIELDS in judge_lab/scoreboard.py, plus session_id
+// (Test: tests/test_scoreboard_contract.py)
 const FIELDS = [
   "timestamp",
   "run_id",
-  "session_id",
-  "group",
-  "phase",
-  "model_key",
-  "model_id",
-  "attitude",
-  "snippet_id",
-  "complexity_level",
-  "with_tests",
-  "prompt_hash",
-  "prompt_text",
-  "submission_no",
-  "submission_id",
-  "tp",
-  "fp",
-  "neutral",
-  "n_defects",
-  "recall",
-  "precision",
-  "weighted_score",
-  "llm_overall_score",
-  "scores_json",
-  "found_defect_ids",
-  "findings_json",
-  "parse_ok",
-  "error",
-  "latency_s",
-  "tokens_in",
-  "tokens_out",
-  "prediction_best_model",
-  "prediction_strict_vs_lenient",
-  "notebook_version"
+  "gruppe",
+  "runde",
+  "snippet",
+  "komplexitaet",
+  "modell",
+  "prompt",
+  "code_score",
+  "judge_score",
+  "judge_max",
+  "gefunden",
+  "fehler_gesamt",
+  "fehlalarme",
+  "einreichung",
+  "session_id"
 ];
 
-// Gleiche Werte wie POINTS in judge_lab/config.py
-const POINTS = { tp: 2, fp_bug: -1 };
-
-const DEFECT_FIELDS = ["snippet_id", "defect_id", "kind", "lines", "description"];
-const ATTITUDES = ["strict", "objective", "lenient"];
-const LEVELS = ["L1", "L2", "L3", "L4", "L5"];
-const PRECOMPUTED = "precomputed";
+const ROUNDS = ["1", "2", "3", "4"];
+const NUMBER_FIELDS = ["runde", "code_score", "judge_score", "judge_max", "gefunden", "fehler_gesamt", "fehlalarme"];
+// Ground-Truth-Zähler, die je Einreichung summiert werden
+const COUNT_FIELDS = ["gefunden", "fehler_gesamt", "fehlalarme"];
 
 // --- Hilfsfunktionen ----------------------------------------------------------
 
@@ -65,7 +47,7 @@ function num(value) {
 }
 
 /**
- * Wert für appendRow. Text, der mit = + - @ beginnt (z. B. ein Prompt mit Markdown-Aufzählung),
+ * Wert für das Sheet. Text, der mit = + - @ beginnt (z. B. ein Prompt mit Markdown-Aufzählung),
  * würde Sheets sonst als Formel auswerten; das vorangestellte ' speichert ihn als Text.
  */
 function cellValue(value) {
@@ -78,198 +60,164 @@ function bool(value) {
   return value === true || String(value).toLowerCase() === "true";
 }
 
-function mean(values) {
-  const numbers = values.map(num).filter((v) => v !== null);
-  if (!numbers.length) return null;
-  return Math.round((numbers.reduce((a, b) => a + b, 0) / numbers.length) * 1000) / 1000;
+/** Sheets wandelt ISO-Zeitstempel oft in Date-Objekte um; beide Formen werden vergleichbar. */
+function timeMs(value) {
+  if (value instanceof Date) return value.getTime();
+  const t = Date.parse(String(value));
+  return Number.isNaN(t) ? 0 : t;
 }
 
-function groupBy(rows, keyFn) {
-  const groups = {};
-  rows.forEach((row) => {
-    const key = keyFn(row);
-    (groups[key] = groups[key] || []).push(row);
+function latest(rows) {
+  return rows.reduce((best, r) => (best === null || timeMs(r.timestamp) >= timeMs(best.timestamp) ? r : best), null);
+}
+
+function isoTime(value) {
+  const t = timeMs(value);
+  return t ? new Date(t).toISOString() : "";
+}
+
+/**
+ * Zeile für setValues. Zahlenfelder als Zahl (auch aus der CSV-Sicherung, die nur Text kennt);
+ * alles andere als Text mit vorangestelltem ' – sonst macht ein deutsches Sheet aus „5.2“ ein Datum,
+ * aus einem ISO-Zeitstempel eine Ortszeit und aus „=…“ eine Formel.
+ */
+function rowValues(record, sessionId) {
+  return FIELDS.map((f) => {
+    const value = f === "session_id" ? sessionId : record[f];
+    if (NUMBER_FIELDS.indexOf(f) >= 0) {
+      const n = num(value);
+      return n === null ? "" : n;
+    }
+    return value === null || value === undefined || value === "" ? "" : "'" + String(value);
   });
-  return groups;
 }
 
-function uniqueSorted(values) {
-  return Array.from(new Set(values)).filter((v) => v !== "").sort();
-}
-
-function ranks(values) {
-  const order = values.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
-  const result = new Array(values.length);
-  let i = 0;
-  while (i < order.length) {
-    let j = i;
-    while (j + 1 < order.length && order[j + 1][0] === order[i][0]) j++;
-    const rank = (i + j) / 2 + 1; // Durchschnittsrang bei Gleichstand
-    for (let k = i; k <= j; k++) result[order[k][1]] = rank;
-    i = j + 1;
-  }
-  return result;
-}
-
-function spearman(xs, ys) {
-  if (xs.length < 3) return null;
-  const rx = ranks(xs);
-  const ry = ranks(ys);
-  const mx = rx.reduce((a, b) => a + b, 0) / rx.length;
-  const my = ry.reduce((a, b) => a + b, 0) / ry.length;
-  let cov = 0, vx = 0, vy = 0;
-  for (let i = 0; i < rx.length; i++) {
-    cov += (rx[i] - mx) * (ry[i] - my);
-    vx += (rx[i] - mx) ** 2;
-    vy += (ry[i] - my) ** 2;
-  }
-  if (vx === 0 || vy === 0) return null;
-  return Math.round((cov / Math.sqrt(vx * vy)) * 1000) / 1000;
-}
-
-function heatmap(rows, models, field) {
-  const result = {};
-  models.forEach((model) => {
-    result[model] = {};
-    ATTITUDES.forEach((attitude) => {
-      result[model][attitude] = mean(
-        rows.filter((r) => r.model_key === model && r.attitude === attitude).map((r) => r[field])
-      );
-    });
-  });
-  return result;
-}
-
-function submissionPoints(rows) {
-  return rows.reduce((sum, r) => sum + POINTS.tp * (num(r.tp) || 0) + POINTS.fp_bug * (num(r.fp) || 0), 0);
+/** Passt eine vorhandene Kopfzeile im Tab runs zu FIELDS? (Leerer Tab: ja) */
+function headerMatches(header) {
+  if (!header || !header.length || header.every((h) => h === "")) return true;
+  return header.length === FIELDS.length && FIELDS.every((f, i) => String(header[i]) === f);
 }
 
 // --- Aggregation (reine Funktion, mit Node getestet) ----------------------------
 
-function aggregate(rows, defects, sessionId, includePrecomputed) {
-  // Ein Retry nach Timeout kann einen Lauf doppelt anhängen: gleiche run_id nur einmal zählen.
+/** Summe der Zahlen in einem Feld; null, wenn keine Zeile eine Zahl hat. */
+function sum(rows, field) {
+  const values = rows.map((r) => num(r[field])).filter((v) => v !== null);
+  return values.length ? values.reduce((a, b) => a + b, 0) : null;
+}
+
+function counts(rows) {
+  const result = {};
+  COUNT_FIELDS.forEach((f) => { result[f] = sum(rows, f); });
+  return result;
+}
+
+function tile(rows) {
+  const r = latest(rows);
+  return Object.assign({ judge_score: num(r.judge_score), code_score: num(r.code_score), judge_max: num(r.judge_max) },
+                       counts([r]),
+                       { prompt: String(r.prompt), snippet: String(r.snippet), modell: String(r.modell),
+                         timestamp: isoTime(r.timestamp) });
+}
+
+/** Alle Zeilen der neuesten Einreichung, je Snippet nur die neueste (doppelt gesendet zählt einmal). */
+function latestSubmission(rows) {
+  const newest = latest(rows);
+  const bySnippet = {};
+  rows.filter((r) => String(r.einreichung) === String(newest.einreichung)).forEach((r) => {
+    const key = String(r.snippet);
+    if (!bySnippet[key] || timeMs(r.timestamp) >= timeMs(bySnippet[key].timestamp)) bySnippet[key] = r;
+  });
+  return Object.keys(bySnippet).map((k) => bySnippet[k]);
+}
+
+function curveTile(rows) {
+  const subset = latestSubmission(rows);
+  const head = latest(subset);
+  const points = subset
+    .map((r) => ({ komplexitaet: String(r.komplexitaet), snippet: String(r.snippet),
+                   code_score: num(r.code_score), judge_score: num(r.judge_score), judge_max: num(r.judge_max) }))
+    .sort((a, b) => a.komplexitaet.localeCompare(b.komplexitaet));
+  const maxima = points.map((p) => p.judge_max).filter((v) => v !== null);
+  return Object.assign({ prompt: String(head.prompt), modell: String(head.modell), timestamp: isoTime(head.timestamp),
+                         points, judge_max: maxima.length ? Math.max.apply(null, maxima) : null }, counts(subset));
+}
+
+function totalTile(rows) {
+  const subset = latestSubmission(rows);
+  const head = latest(subset);
+  const code = subset.map((r) => num(r.code_score)).filter((v) => v !== null);
+  return Object.assign({
+    judge_score: sum(subset, "judge_score"),
+    code_score: code.length ? Math.round((code.reduce((a, b) => a + b, 0) / code.length) * 100) / 100 : null,
+    n: subset.length,
+    judge_max: sum(subset, "judge_max"),
+  }, counts(subset), {
+    prompt: String(head.prompt),
+    modell: String(head.modell),
+    timestamp: isoTime(head.timestamp),
+  });
+}
+
+function aggregate(rows, keyRows, joins, sessionId) {
+  const session = String(sessionId || "");
   const seen = {};
-  const selected = rows.filter((r) => {
-    if (!(r.session_id === sessionId || (includePrecomputed && r.session_id === PRECOMPUTED))) return false;
-    if (!r.run_id) return true;
-    if (seen[r.run_id]) return false;
-    seen[r.run_id] = true;
+  const live = (rows || []).filter((r) => {
+    if (String(r.session_id) !== session) return false;
+    const id = String(r.run_id || "");
+    if (!id) return true;
+    if (seen[id]) return false;
+    seen[id] = true;
     return true;
   });
-  // Läufe ohne Urteil wegen Infrastruktur (Key, Limit, Netz): parse_ok leer. Sie sagen nichts über den Judge.
-  const failed = (r) => r.parse_ok === "" || r.parse_ok === null || r.parse_ok === undefined;
-  const infraErrors = {};
-  selected.filter((r) => r.phase !== "prognosis" && failed(r)).forEach((r) => {
-    infraErrors[r.model_key] = (infraErrors[r.model_key] || 0) + 1;
-  });
-  const a1 = selected.filter((r) => r.phase === "a1" && !failed(r));
-  const models = uniqueSorted(a1.map((r) => r.model_key));
 
-  // RQ1: welcher Defekt wurde von welchem Modell wie oft gefunden?
-  const defectByModel = defects.map((d) => {
-    const rates = {};
-    models.forEach((model) => {
-      const runs = a1.filter((r) => r.model_key === model && r.snippet_id === d.snippet_id);
-      const found = runs.filter((r) => String(r.found_defect_ids).split(",").indexOf(d.defect_id) >= 0);
-      rates[model] = runs.length ? Math.round((found.length / runs.length) * 1000) / 1000 : null;
-    });
-    return { snippet_id: d.snippet_id, defect_id: d.defect_id, kind: d.kind, rates: rates };
+  const groups = [];
+  (keyRows || []).forEach((k) => {
+    const g = String(k.group || "").trim();
+    if (g && bool(k.active) && groups.indexOf(g) < 0) groups.push(g);
+  });
+  live.forEach((r) => {
+    const g = String(r.gruppe || "").trim();
+    if (g && groups.indexOf(g) < 0) groups.push(g);
   });
 
-  // RQ1: Rangkorrelation der Scores über gemeinsame Bedingungen
-  const scoreByKey = {};
-  a1.forEach((r) => {
-    const score = num(r.weighted_score);
-    if (score === null) return;
-    const key = [r.snippet_id, r.attitude, bool(r.with_tests)].join("|");
-    (scoreByKey[r.model_key] = scoreByKey[r.model_key] || {})[key] = score;
+  const connected = {};
+  groups.forEach((g) => {
+    connected[g] = (joins || []).some((j) => String(j.group) === g && String(j.session_id) === session);
   });
-  const spearmanMatrix = {};
-  models.forEach((a) => {
-    spearmanMatrix[a] = {};
-    models.forEach((b) => {
-      const keys = Object.keys(scoreByKey[a] || {}).filter((k) => k in (scoreByKey[b] || {}));
-      spearmanMatrix[a][b] = spearman(keys.map((k) => scoreByKey[a][k]), keys.map((k) => scoreByKey[b][k]));
+
+  const rounds = {};
+  ROUNDS.forEach((round) => {
+    rounds[round] = {};
+    groups.forEach((g) => {
+      const mine = live.filter((r) => String(num(r.runde)) === round && String(r.gruppe).trim() === g);
+      if (!mine.length) rounds[round][g] = null;
+      else if (round === "3") rounds[round][g] = curveTile(mine);
+      else if (round === "4") rounds[round][g] = totalTile(mine);
+      else rounds[round][g] = tile(mine);
     });
   });
 
-  // RQ3 und Zusatzfaktoren
-  const recallByLevel = { levels: LEVELS, series: {} };
-  const testsDelta = {};
-  const publicVsPrivate = {};
-  const parseFailures = {};
-  models.forEach((model) => {
-    const own = a1.filter((r) => r.model_key === model);
-    recallByLevel.series[model] = LEVELS.map((level) =>
-      mean(own.filter((r) => r.complexity_level === level).map((r) => r.recall))
-    );
-    const withTests = own.filter((r) => bool(r.with_tests));
-    const withoutTests = own.filter((r) => !bool(r.with_tests));
-    testsDelta[model] = {
-      recallWith: mean(withTests.map((r) => r.recall)),
-      recallWithout: mean(withoutTests.map((r) => r.recall)),
-      fpWith: mean(withTests.map((r) => r.fp)),
-      fpWithout: mean(withoutTests.map((r) => r.fp)),
-    };
-    publicVsPrivate[model] = {
-      quixbugs: mean(own.filter((r) => String(r.snippet_id).indexOf("qb_") === 0).map((r) => r.recall)),
-      bank_account: mean(own.filter((r) => r.snippet_id === "bank_account").map((r) => r.recall)),
-    };
-  });
-  // Formattreue über alle Phasen mit LLM-Lauf
-  const llmRuns = selected.filter((r) => r.phase !== "prognosis" && !failed(r));
-  Object.entries(groupBy(llmRuns, (r) => r.model_key)).forEach(([model, runs]) => {
-    parseFailures[model] = { failed: runs.filter((r) => !bool(r.parse_ok)).length, total: runs.length };
-  });
+  const scores = groups.map((g) => (rounds["4"][g] ? rounds["4"][g].judge_score : null)).filter((v) => v !== null);
+  const best = scores.length ? Math.max.apply(null, scores) : null;
+  const leaders = best === null ? [] : groups.filter((g) => rounds["4"][g] && rounds["4"][g].judge_score === best);
 
-  // Prognosen: je Gruppe die letzte
-  const predictions = Object.values(groupBy(selected.filter((r) => r.phase === "prognosis"), (r) => r.group))
-    .map((list) => list.sort((x, y) => String(x.timestamp).localeCompare(String(y.timestamp))).pop())
-    .map((r) => ({ group: r.group, best_model: r.prediction_best_model, strict_vs_lenient: r.prediction_strict_vs_lenient }))
-    .sort((x, y) => x.group.localeCompare(y.group));
+  return { session, groups, connected, rounds, leaders };
+}
 
-  // Prompt-Challenge
-  const challenge = selected.filter((r) => r.phase === "a2_submit" || r.phase === "reference");
-  const gallery = Object.values(
-    groupBy(challenge, (r) => r.submission_id || r.group + "|" + r.submission_no)
-  ).map((runs) => {
-    const own = runs.filter((r) => r.phase === "a2_submit");
-    const reference = runs.filter((r) => r.phase === "reference");
-    const text = own.map((r) => r.prompt_text).find((t) => t) || "";
-    return {
-      group: runs[0].group,
-      model_key: own.length ? own[0].model_key : "",
-      submission_no: num(runs[0].submission_no),
-      prompt_hash: runs[0].prompt_hash,
-      prompt_text: text,
-      points: own.length ? submissionPoints(own) : null,
-      reference_points: reference.length ? submissionPoints(reference) : null,
-    };
-  });
-  const leaderboard = Object.values(groupBy(gallery.filter((g) => g.points !== null), (g) => g.group))
-    .map((list) => list.sort((x, y) => y.points - x.points || x.submission_no - y.submission_no)[0])
-    .sort((x, y) => y.points - x.points || x.group.localeCompare(y.group));
+// --- Gruppencodes (reine Funktion, mit Node getestet) ----------------------------
 
-  return {
-    session: sessionId,
-    models: models,
-    attitudes: ATTITUDES,
-    runs: selected.length,
-    scoreHeatmap: heatmap(a1, models, "weighted_score"),
-    recallHeatmap: heatmap(a1, models, "recall"),
-    fpHeatmap: heatmap(a1, models, "fp"),
-    defectByModel: defectByModel,
-    spearman: spearmanMatrix,
-    recallByLevel: recallByLevel,
-    testsDelta: testsDelta,
-    publicVsPrivate: publicVsPrivate,
-    parseFailures: parseFailures,
-    infraErrors: infraErrors,
-    predictions: predictions,
-    leaderboard: leaderboard,
-    gallery: gallery.sort((x, y) => x.group.localeCompare(y.group) || x.submission_no - y.submission_no),
-    resolution: defects,
-  };
+function normalizeCode(value) {
+  return String(value === null || value === undefined ? "" : value).replace(/\s+/g, "").toUpperCase();
+}
+
+/** Antwort auf ?action=join. Ohne gültiges Token gibt es keinen Key, auch nicht bei leerem Token im Sheet. */
+function joinLookup(keyRows, config, params) {
+  if (!config.token || params.token !== config.token) return { status: "error", message: "Ungültiges Token" };
+  const code = normalizeCode(params.code);
+  const row = code && keyRows.find((r) => normalizeCode(r.code) === code && bool(r.active));
+  if (!row) return { status: "error", message: "Code unbekannt" };
+  return { status: "ok", group: String(row.group), key: String(row.openrouter_key) };
 }
 
 // --- Apps Script: Sheet-Zugriff -------------------------------------------------
@@ -295,6 +243,13 @@ function readTable_(name) {
   return values.slice(1).map((row) => Object.fromEntries(header.map((key, i) => [key, row[i]])));
 }
 
+/** Protokolliert einen erfolgreichen Join (für „verbunden“ im Dashboard); ohne Key. */
+function logJoin_(sessionId, group) {
+  const joins = sheet_("joins");
+  if (joins.getLastRow() === 0) joins.appendRow(["timestamp", "session_id", "group"]);
+  joins.appendRow([new Date().toISOString(), cellValue(sessionId), cellValue(group)]);
+}
+
 function json_(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -306,48 +261,52 @@ function doPost(e) {
   } catch (err) {
     return json_({ status: "error", message: "Kein gültiges JSON" });
   }
-  if (!body || body.token !== config_().token) {
+  const config = config_();
+  if (!body || !config.token || body.token !== config.token) {
     return json_({ status: "error", message: "Ungültiges Token" });
+  }
+  if (!Array.isArray(body.records) || !body.records.length) {
+    return json_({ status: "error", message: "Keine Ergebnisse (records) im Request" });
   }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    if (Array.isArray(body.defects)) {
-      const target = sheet_("defects");
-      target.clearContents();
-      target.appendRow(DEFECT_FIELDS);
-      body.defects.forEach((d) => target.appendRow(DEFECT_FIELDS.map((f) => cellValue(d[f]))));
-      return json_({ status: "ok", defects: body.defects.length });
-    }
     const runs = sheet_("runs");
     if (runs.getLastRow() === 0) runs.appendRow(FIELDS);
-    const record = body.record || {};
-    runs.appendRow(FIELDS.map((f) => cellValue(record[f])));
-    return json_({ status: "ok" });
+    const header = runs.getRange(1, 1, 1, runs.getLastColumn()).getValues()[0];
+    if (!headerMatches(header)) {
+      return json_({ status: "error", message: "Tab runs hat eine alte Kopfzeile – bitte in runs_alt umbenennen" });
+    }
+    const values = body.records.map((record) => rowValues(record, config.session_id || ""));
+    runs.getRange(runs.getLastRow() + 1, 1, values.length, FIELDS.length).setValues(values);
+    return json_({ status: "ok", records: values.length });
   } finally {
     lock.releaseLock();
   }
 }
 
 /** Wird vom Dashboard über google.script.run aufgerufen. */
-function getData(sessionId, includePrecomputed) {
-  return aggregate(readTable_("runs"), readTable_("defects"), sessionId || config_().session_id, !!includePrecomputed);
+function getData() {
+  const config = config_();
+  return aggregate(readTable_("runs"), readTable_("keys"), readTable_("joins"), config.session_id);
 }
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
-  const session = params.session || config_().session_id || "";
-  if (params.format === "json") {
-    return json_(getData(session, params.precomputed === "1"));
+  if (params.action === "join") {
+    const config = config_();
+    const answer = joinLookup(readTable_("keys"), config, params);
+    if (answer.status === "ok") logJoin_(config.session_id || "", answer.group);
+    return json_(answer);
   }
-  const template = HtmlService.createTemplateFromFile("dashboard");
-  template.session = session;
-  return template
-    .evaluate()
+  if (params.format === "json") {
+    return json_(getData());
+  }
+  return HtmlService.createHtmlOutputFromFile("dashboard")
     .setTitle("Scoreboard – LLM-as-a-Judge")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
 
 // Für die Tests mit Node; in Apps Script ist `module` nicht definiert.
-if (typeof module !== "undefined") module.exports = { aggregate, cellValue, FIELDS, POINTS };
+if (typeof module !== "undefined") module.exports = { aggregate, cellValue, headerMatches, joinLookup, normalizeCode, rowValues, FIELDS };
