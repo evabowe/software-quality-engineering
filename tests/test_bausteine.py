@@ -11,7 +11,8 @@ from judge_lab.bausteine import bewerte, bewerte_alle, sende
 from judge_lab.llm import ConfigError, LLMResult
 from judge_lab.scoreboard import RECORD_FIELDS, Scoreboard
 
-KEYS = {"code_score", "judge_score", "snippet", "komplexitaet", "modell", "prompt", "gruppe", "einreichung", "fehler"}
+KEYS = {"code_score", "judge_score", "judge_max", "gefunden", "fehler_gesamt", "fehlalarme", "snippet", "komplexitaet",
+        "modell", "prompt", "gruppe", "einreichung", "fehler"}
 
 
 @pytest.fixture(autouse=True)
@@ -84,6 +85,19 @@ def test_bewerte_mock_returns_both_scores():
     assert r["fehler"] is None and r["code_score"] == 6.0 and r["judge_score"] == 1  # Mock: 1 Treffer, 1 Fehlalarm
     assert set(r) == KEYS
     assert (r["snippet"], r["komplexitaet"], r["modell"], r["prompt"]) == ("bank_account", "", "mock", "Sei streng.")
+
+
+def test_bewerte_reports_ground_truth_counts():
+    r = bewerte("Sei streng.", snippet="bank_account", modell="mock")
+    assert (r["gefunden"], r["fehler_gesamt"], r["fehlalarme"], r["judge_max"]) == (1, 6, 1, 12)
+    q = bewerte("Sei streng.", snippet="qb_quicksort", modell="mock")
+    assert (q["fehler_gesamt"], q["judge_max"]) == (1, 2)
+
+
+def test_failed_bewerte_has_no_counts(monkeypatch):
+    use_client(monkeypatch, FakeClient("kein JSON"))
+    r = bewerte("x")
+    assert (r["gefunden"], r["fehlalarme"]) == (None, None)
 
 
 def test_bewerte_default_model_is_gpt6_luna(monkeypatch):
@@ -186,7 +200,8 @@ def test_bewerte_truncated_answer_says_so(monkeypatch):
 
 
 def ergebnis(**overrides):
-    base = {"code_score": 5.2, "judge_score": 3, "snippet": "bank_account", "komplexitaet": "",
+    base = {"code_score": 5.2, "judge_score": 3, "judge_max": 12, "gefunden": 2, "fehler_gesamt": 6, "fehlalarme": 1,
+            "snippet": "bank_account", "komplexitaet": "",
             "modell": "openai/gpt-6-luna", "prompt": "Sei streng.", "gruppe": "Gruppe 2",
             "einreichung": "e1", "fehler": None}
     return {**base, **overrides}
@@ -223,6 +238,7 @@ def test_sende_round2_single_result(board, capsys):
     row = rows[0]
     assert (row["runde"], row["gruppe"], row["snippet"], row["code_score"], row["judge_score"]) == \
         (2, "Gruppe 2", "bank_account", 5.2, 3)
+    assert (row["judge_max"], row["gefunden"], row["fehler_gesamt"], row["fehlalarme"]) == (12, 2, 6, 1)
     assert len(row["run_id"]) == 32
     assert datetime.fromisoformat(row["timestamp"]).utcoffset().total_seconds() == 0
     assert "gesendet" in capsys.readouterr().out

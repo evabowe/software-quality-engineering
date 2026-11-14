@@ -21,14 +21,15 @@ function row(overrides) {
   return Object.assign(base, {
     timestamp: "2026-11-14T10:00:00+00:00", run_id: "r" + counter, session_id: "live", gruppe: "Gruppe 1",
     runde: 1, snippet: "bank_account", modell: "openai/gpt-6-luna", prompt: "p", code_score: 5, judge_score: 1,
-    einreichung: "e" + counter,
+    judge_max: 12, gefunden: 1, fehler_gesamt: 6, fehlalarme: 1, einreichung: "e" + counter,
   }, overrides);
 }
 
 function curve(gruppe, einreichung, timestamp, overrides) {
   const names = ["qb_bitcount", "qb_quicksort", "qb_levenshtein", "qb_shunting_yard", "qb_next_permutation"];
   return names.map((snippet, i) => row(Object.assign({ gruppe, einreichung, timestamp, snippet,
-    komplexitaet: "L" + (i + 1), code_score: 10 - i, judge_score: i }, overrides ? overrides(i) : {})));
+    komplexitaet: "L" + (i + 1), code_score: 10 - i, judge_score: i, judge_max: 2, gefunden: i % 2, fehler_gesamt: 1,
+    fehlalarme: i % 3 }, overrides ? overrides(i) : {})));
 }
 
 test("FIELDS endet mit session_id", () => {
@@ -46,12 +47,14 @@ test("Kopfzeile: leer oder genau FIELDS passt, alte 34-Spalten-Kopfzeile nicht",
 test("Runde 2 zeigt die neueste Zeile je Gruppe", () => {
   const rows = [
     row({ runde: 2, prompt: "alt", timestamp: "2026-11-14T10:00:00+00:00" }),
-    row({ runde: 2, prompt: "neu", code_score: "6.5", judge_score: "3", timestamp: "2026-11-14T10:05:00+00:00" }),
+    row({ runde: 2, prompt: "neu", code_score: "6.5", judge_score: "3", gefunden: "2", fehlalarme: "1",
+          timestamp: "2026-11-14T10:05:00+00:00" }),
     row({ runde: 1, prompt: "andere Runde", timestamp: "2026-11-14T10:09:00+00:00" }),
   ];
   const tile = aggregate(rows, KEYS, [], "live").rounds["2"]["Gruppe 1"];
-  assert.deepEqual(tile, { judge_score: 3, code_score: 6.5, prompt: "neu", snippet: "bank_account",
-                           modell: "openai/gpt-6-luna", timestamp: "2026-11-14T10:05:00.000Z" });
+  assert.deepEqual(tile, { judge_score: 3, code_score: 6.5, judge_max: 12, gefunden: 2, fehler_gesamt: 6, fehlalarme: 1,
+                           prompt: "neu", snippet: "bank_account", modell: "openai/gpt-6-luna",
+                           timestamp: "2026-11-14T10:05:00.000Z" });
 });
 
 test("Zeitstempel als Date-Objekt (so liefert Sheets sie oft) werden verglichen", () => {
@@ -91,6 +94,8 @@ test("rowValues: Zahlenfelder als Zahl, alle anderen Texte als Text (kein Datum,
   assert.equal(at("runde"), 4);
   assert.equal(at("code_score"), 5.2);
   assert.equal(at("judge_score"), -1);
+  assert.equal(rowValues({ judge_max: "12", gefunden: "2", fehler_gesamt: "6", fehlalarme: "0" }, "x")
+    .slice(FIELDS.indexOf("judge_max"), FIELDS.indexOf("fehlalarme") + 1).join(","), "12,2,6,0");
   assert.equal(at("timestamp"), "'2026-11-14T10:00:00+00:00");
   assert.equal(at("prompt"), "'TRUE");
   assert.equal(at("einreichung"), "'1/2");
@@ -110,7 +115,10 @@ test("Runde 3 nimmt nur die neueste Einreichung, sortiert L1–L5", () => {
   const c = aggregate(older.concat(newer), KEYS, [], "live").rounds["3"]["Gruppe 2"];
   assert.equal(c.prompt, "neu");
   assert.deepEqual(c.points.map((p) => p.komplexitaet), ["L1", "L2", "L3", "L4", "L5"]);
-  assert.deepEqual(c.points[0], { komplexitaet: "L1", snippet: "qb_bitcount", code_score: 10, judge_score: 0 });
+  assert.deepEqual(c.points[0], { komplexitaet: "L1", snippet: "qb_bitcount", code_score: 10, judge_score: 0,
+                                  judge_max: 2 });
+  // gefunden i % 2 → 0+1+0+1+0, Fehlalarme i % 3 → 0+1+2+0+1
+  assert.deepEqual([c.gefunden, c.fehler_gesamt, c.fehlalarme, c.judge_max], [2, 5, 4, 2]);
 });
 
 test("Runde 4 summiert judge_score, mittelt code_score und ignoriert leere Werte", () => {
@@ -119,7 +127,8 @@ test("Runde 4 summiert judge_score, mittelt code_score und ignoriert leere Werte
   const rows = curve("Gruppe 3", "e", "2026-11-14T10:00:00+00:00", (i) => ({ runde: 4, judge_score: judge[i],
                                                                             code_score: code[i] }));
   const total = aggregate(rows, KEYS, [], "live").rounds["4"]["Gruppe 3"];
-  assert.deepEqual(total, { judge_score: 6, code_score: 5, n: 5, prompt: "p", modell: "openai/gpt-6-luna",
+  assert.deepEqual(total, { judge_score: 6, code_score: 5, n: 5, judge_max: 10, gefunden: 2, fehler_gesamt: 5,
+                            fehlalarme: 4, prompt: "p", modell: "openai/gpt-6-luna",
                             timestamp: "2026-11-14T10:00:00.000Z" });
 });
 

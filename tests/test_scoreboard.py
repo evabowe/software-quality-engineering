@@ -44,7 +44,8 @@ def rows(path):
 
 def test_record_fields_are_the_contract():
     assert RECORD_FIELDS == ("timestamp", "run_id", "gruppe", "runde", "snippet", "komplexitaet", "modell",
-                             "prompt", "code_score", "judge_score", "einreichung")
+                             "prompt", "code_score", "judge_score", "judge_max", "gefunden", "fehler_gesamt",
+                             "fehlalarme", "einreichung")
 
 
 def test_submit_posts_records_in_one_request(tmp_path):

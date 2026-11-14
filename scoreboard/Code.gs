@@ -25,12 +25,18 @@ const FIELDS = [
   "prompt",
   "code_score",
   "judge_score",
+  "judge_max",
+  "gefunden",
+  "fehler_gesamt",
+  "fehlalarme",
   "einreichung",
   "session_id"
 ];
 
 const ROUNDS = ["1", "2", "3", "4"];
-const NUMBER_FIELDS = ["runde", "code_score", "judge_score"];
+const NUMBER_FIELDS = ["runde", "code_score", "judge_score", "judge_max", "gefunden", "fehler_gesamt", "fehlalarme"];
+// Ground-Truth-Zähler, die je Einreichung summiert werden
+const COUNT_FIELDS = ["gefunden", "fehler_gesamt", "fehlalarme"];
 
 // --- Hilfsfunktionen ----------------------------------------------------------
 
@@ -94,10 +100,24 @@ function headerMatches(header) {
 
 // --- Aggregation (reine Funktion, mit Node getestet) ----------------------------
 
+/** Summe der Zahlen in einem Feld; null, wenn keine Zeile eine Zahl hat. */
+function sum(rows, field) {
+  const values = rows.map((r) => num(r[field])).filter((v) => v !== null);
+  return values.length ? values.reduce((a, b) => a + b, 0) : null;
+}
+
+function counts(rows) {
+  const result = {};
+  COUNT_FIELDS.forEach((f) => { result[f] = sum(rows, f); });
+  return result;
+}
+
 function tile(rows) {
   const r = latest(rows);
-  return { judge_score: num(r.judge_score), code_score: num(r.code_score), prompt: String(r.prompt),
-           snippet: String(r.snippet), modell: String(r.modell), timestamp: isoTime(r.timestamp) };
+  return Object.assign({ judge_score: num(r.judge_score), code_score: num(r.code_score), judge_max: num(r.judge_max) },
+                       counts([r]),
+                       { prompt: String(r.prompt), snippet: String(r.snippet), modell: String(r.modell),
+                         timestamp: isoTime(r.timestamp) });
 }
 
 /** Alle Zeilen der neuesten Einreichung, je Snippet nur die neueste (doppelt gesendet zählt einmal). */
@@ -116,24 +136,27 @@ function curveTile(rows) {
   const head = latest(subset);
   const points = subset
     .map((r) => ({ komplexitaet: String(r.komplexitaet), snippet: String(r.snippet),
-                   code_score: num(r.code_score), judge_score: num(r.judge_score) }))
+                   code_score: num(r.code_score), judge_score: num(r.judge_score), judge_max: num(r.judge_max) }))
     .sort((a, b) => a.komplexitaet.localeCompare(b.komplexitaet));
-  return { prompt: String(head.prompt), modell: String(head.modell), timestamp: isoTime(head.timestamp), points };
+  const maxima = points.map((p) => p.judge_max).filter((v) => v !== null);
+  return Object.assign({ prompt: String(head.prompt), modell: String(head.modell), timestamp: isoTime(head.timestamp),
+                         points, judge_max: maxima.length ? Math.max.apply(null, maxima) : null }, counts(subset));
 }
 
 function totalTile(rows) {
   const subset = latestSubmission(rows);
   const head = latest(subset);
-  const judge = subset.map((r) => num(r.judge_score)).filter((v) => v !== null);
   const code = subset.map((r) => num(r.code_score)).filter((v) => v !== null);
-  return {
-    judge_score: judge.length ? judge.reduce((a, b) => a + b, 0) : null,
+  return Object.assign({
+    judge_score: sum(subset, "judge_score"),
     code_score: code.length ? Math.round((code.reduce((a, b) => a + b, 0) / code.length) * 100) / 100 : null,
     n: subset.length,
+    judge_max: sum(subset, "judge_max"),
+  }, counts(subset), {
     prompt: String(head.prompt),
     modell: String(head.modell),
     timestamp: isoTime(head.timestamp),
-  };
+  });
 }
 
 function aggregate(rows, keyRows, joins, sessionId) {

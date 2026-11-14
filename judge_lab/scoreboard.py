@@ -28,6 +28,10 @@ RECORD_FIELDS = (
     "prompt",
     "code_score",
     "judge_score",
+    "judge_max",  # bestmöglicher Judge-Score = 2 × bekannte Fehler
+    "gefunden",  # echte Fehler gefunden
+    "fehler_gesamt",  # bekannte Fehler im Snippet (Ground Truth)
+    "fehlalarme",  # gemeldete Bugs ohne echten Fehler an der Stelle
     "einreichung",  # gleiche ID für alle Zeilen eines bewerte_alle-Aufrufs
 )
 

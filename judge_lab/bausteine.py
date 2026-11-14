@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 
 from judge_lab import join as _join_module
-from judge_lab.config import CONCURRENCY, DEFAULT_MODEL, SCOREBOARD_TOKEN, SCOREBOARD_URL
+from judge_lab.config import CONCURRENCY, DEFAULT_MODEL, POINTS, SCOREBOARD_TOKEN, SCOREBOARD_URL
 from judge_lab.llm import ConfigError, make_client
 from judge_lab.matching import match_findings
 from judge_lab.prompts import build_prompt
@@ -60,6 +60,10 @@ def _ergebnis(prompt: str, snippet_id: str, komplexitaet: str, modell: str, einr
     return {
         "code_score": None,
         "judge_score": None,
+        "judge_max": None,
+        "gefunden": None,
+        "fehler_gesamt": None,
+        "fehlalarme": None,
         "snippet": snippet_id,
         "komplexitaet": komplexitaet,
         "modell": modell,
@@ -84,6 +88,8 @@ def _kurzgrund(error: str) -> str:
 
 def _bewerte_snippet(client, prompt: str, snippet: Snippet, modell: str, einreichung: str) -> dict:
     ergebnis = _ergebnis(prompt, snippet.id, snippet.level or "", modell, einreichung)
+    ergebnis["fehler_gesamt"] = len(snippet.defects)
+    ergebnis["judge_max"] = POINTS["tp"] * len(snippet.defects)
     try:
         messages = build_prompt(snippet, prompt)
         verdict, result, _ = judge(client, messages, snippet.line_count)
@@ -98,8 +104,11 @@ def _bewerte_snippet(client, prompt: str, snippet: Snippet, modell: str, einreic
     if verdict is None or not (verdict.findings or verdict.scores):
         # Abgeschnittene Antwort oder Ablehnung: kein Urteil – nicht als „0 Fehler gefunden“ werten.
         return _fehlschlag(ergebnis, ABGESCHNITTEN if result.finish_reason == "length" else UNLESBAR)
+    treffer = match_findings(verdict.findings, snippet.defects)
     ergebnis["code_score"] = weighted_score(verdict.scores)
-    ergebnis["judge_score"] = challenge_points([match_findings(verdict.findings, snippet.defects)])
+    ergebnis["judge_score"] = challenge_points([treffer])
+    ergebnis["gefunden"] = treffer.tp
+    ergebnis["fehlalarme"] = treffer.fp
     return ergebnis
 
 

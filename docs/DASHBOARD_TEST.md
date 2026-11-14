@@ -45,10 +45,11 @@ curl -L "$URL?action=join&code=<CODE>&token=$TOKEN"          # → {"status":"ok
 2. Im Notebook einen echten Code aus dem Tab `keys` in `verbinde("…")` eintragen und alle Zellen ausführen.
 3. Am Dashboard prüfen:
    - [ ] Nach `verbinde` zeigt die Kachel der Gruppe „verbunden – noch nichts gesendet“.
-   - [ ] **Taste 1:** Die Kachel zeigt Judge-Score, Code-Score und Prompt, darunter `bank_account · openai/gpt-6-luna · gerade eben`.
+   - [ ] Über den Kacheln steht die Erklärung zu Code-Score und Judge-Score.
+   - [ ] **Taste 1:** Die Kachel zeigt „Judge-Score … von max. 12“, „Code-Score … von 10“, „✔ … von 6 echten Fehlern gefunden · ✘ … Fehlalarm(e)“ und den Prompt, darunter `bank_account · openai/gpt-6-luna · gerade eben`.
    - [ ] **Taste 2:** Die Kachel zeigt den *zweiten* Rollen-Prompt (der zuletzt gesendete gewinnt).
-   - [ ] **Taste 3:** Die Kachel zeigt ein Diagramm mit L1–L5, blau für den Code-Score (links), orange für den Judge-Score (rechts).
-   - [ ] **Taste 4:** Die Kachel zeigt Summe und Durchschnitt, „5/5 Snippets“ und ist als 🏆 vorne hervorgehoben (einzige Gruppe).
+   - [ ] **Taste 3:** Die Kachel zeigt ein Diagramm mit L1–L5, blau für den Code-Score (links), orange für den Judge-Score (rechts) mit gestrichelter Maximallinie bei 2, darunter „gefunden … von 5“.
+   - [ ] **Taste 4:** Die Kachel zeigt die Summe „von max. 10“, den Durchschnitt, „… von 5 echten Fehlern gefunden“, „5/5 Snippets“ und ist als 🏆 vorne hervorgehoben (einzige Gruppe).
    - [ ] Ein Klick auf einen Prompt klappt den vollen Text auf.
    - [ ] Im Tab `runs` ist `code_score` eine Zahl (z. B. `5,2`, kein Datum), `timestamp` und `prompt` stehen als Text ohne sichtbares `'`.
    - [ ] Die Zelle von Runde 4 noch einmal ausführen: Die Kachel zeigt weiter „5/5 Snippets“ und dieselbe Summe.

@@ -47,14 +47,16 @@ verbinde("K7QX")          # → ✅ Verbunden als Gruppe 2.
 ```python
 ergebnis = bewerte("Du bist ein strenger Senior-Reviewer …", snippet="bank_account")
 ergebnis["code_score"]    # 5.2  – Note des Modells für den Code, 0–10
-ergebnis["judge_score"]   # 3    – wie gut das Modell als Gutachter war
+ergebnis["judge_score"]   # 3    – wie gut das Modell als Gutachter war (max. ergebnis["judge_max"], hier 12)
+ergebnis["gefunden"], ergebnis["fehler_gesamt"], ergebnis["fehlalarme"]   # 2, 6, 1
 ```
 
 - **`prompt`** ist nur der Text der Gruppe, zum Beispiel eine Rolle oder Haltung. Skala, Code mit Zeilennummern und Antwortformat hängt die Funktion selbst an.
 - **`code_score`** ist die gewichtete Note aus den vier ISO-25010-Dimensionen (0–10).
 - **`judge_score`** gibt 2 Punkte für jeden echten Fehler, den das Modell gefunden hat, und zieht 1 Punkt für jeden Fehlalarm ab. Er kann negativ sein.
 - **`modell`**: Jede OpenRouter-ID funktioniert, Standard ist GPT-6 Luna. Mit `modell="mock"` gibt es eine kostenlose Probe ohne `verbinde`, die nicht ans Dashboard geht.
-- **Rückgabe:** ein dict mit `code_score`, `judge_score`, `snippet`, `komplexitaet`, `modell`, `prompt`, `gruppe`, `einreichung` und `fehler`.
+- **Ground Truth:** `gefunden` gibt an, wie viele der `fehler_gesamt` bekannten Fehler das Modell gefunden hat. `fehlalarme` zählt gemeldete Bugs an Stellen ohne echten Fehler, reine Stil-Hinweise zählen nicht. `judge_max` = 2 × `fehler_gesamt`.
+- **Rückgabe:** ein dict mit `code_score`, `judge_score`, `judge_max`, `gefunden`, `fehler_gesamt`, `fehlalarme`, `snippet`, `komplexitaet`, `modell`, `prompt`, `gruppe`, `einreichung` und `fehler`.
 - **Fehler** (z. B. falscher Key, Guthaben leer, unlesbare Antwort): Es kommt eine Meldung, beide Scores sind `None` und `fehler` enthält den Grund. Einfach noch einmal ausführen.
 
 ### `bewerte_alle(prompt, modell="openai/gpt-6-luna")`
@@ -119,8 +121,10 @@ Vorlagen gibt es bewusst nicht: Die Studierenden schreiben jeden Prompt selbst. 
 
 Die Lehrenden wählen am Beamer die Runde (Reiter oder Tasten 1–4). Jede Gruppe hat eine Kachel:
 
-- **Runde 1, 2:** Judge-Score, Code-Score und Prompt der zuletzt gesendeten Bewertung.
-- **Runde 3:** ein Diagramm L1 → L5 mit Code-Score (links) und Judge-Score (rechts).
-- **Runde 4:** die Summe der Judge-Scores und der Durchschnitt der Code-Scores über die fünf Snippets. Die beste Gruppe ist hervorgehoben.
+- **Runde 1, 2:** Judge-Score (von max.), Code-Score (von 10), „✔ 2 von 6 echten Fehlern gefunden · ✘ 1 Fehlalarm“ und der Prompt der zuletzt gesendeten Bewertung.
+- **Runde 3:** ein Diagramm L1 → L5 mit Code-Score (links) und Judge-Score (rechts, gestrichelt das Maximum), darunter „gefunden 3 von 5 · 1 Fehlalarm“.
+- **Runde 4:** Judge-Score, Maximum und Treffer summiert über die fünf Snippets, Code-Score als Durchschnitt. Die beste Gruppe ist hervorgehoben.
+
+Über den Kacheln steht in jeder Runde, was Code-Score und Judge-Score bedeuten.
 
 Neue Ergebnisse erscheinen nach höchstens 10 Sekunden.

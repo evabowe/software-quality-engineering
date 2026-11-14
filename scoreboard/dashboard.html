@@ -27,6 +27,8 @@
     .nums { display: flex; gap: 32px; margin-bottom: 6px; }
     .num small { display: block; font-size: 18px; color: var(--muted); }
     .num b { font-size: 40px; line-height: 1.1; }
+    .num span { font-size: 18px; color: var(--muted); }
+    .truth { font-size: 18px; margin: 0 0 6px; }
     .num.code b { color: var(--code); }
     .num.judge b { color: var(--judge); }
     .prompt { font: 18px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--soft);
@@ -34,10 +36,11 @@
               white-space: pre-wrap; }
     .prompt.open { max-height: none; }
     .meta { font-size: 18px; color: var(--muted); margin-top: 4px; }
-    .chart { position: relative; height: 140px; }
+    .chart { position: relative; height: 112px; }
     .curve .prompt { max-height: 1.6em; }
     .curve .prompt.open { max-height: none; }
     .legend { font-size: 18px; color: var(--muted); margin: 0 0 8px; }
+    .legend b { color: var(--ink); }
     .legend i { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin: 0 6px 0 14px; }
     @media (max-width: 760px) { .tiles { grid-template-columns: minmax(0, 1fr); } body { padding: 12px 16px; } }
   </style>
@@ -80,6 +83,17 @@
       return minutes < 1 ? "gerade eben" : "vor " + minutes + " min";
     }
 
+    function fehlalarme(n) {
+      return n === 1 ? "1 Fehlalarm" : fmt(n) + " Fehlalarme";
+    }
+
+    function truth(t, long) {
+      if (t.gefunden === null || t.gefunden === undefined) return "";
+      const found = long ? fmt(t.gefunden) + " von " + fmt(t.fehler_gesamt) + " echten Fehlern gefunden"
+                         : "gefunden " + fmt(t.gefunden) + " von " + fmt(t.fehler_gesamt);
+      return "<div class='truth'>✔ " + found + " · ✘ " + fehlalarme(t.fehlalarme) + "</div>";
+    }
+
     function promptBox(group, text) {
       const open = openPrompts.has(group) ? " open" : "";
       return "<div class='prompt" + open + "' data-group='" + esc(group) + "' title='" + esc(text) + "'>" +
@@ -94,8 +108,10 @@
     function scoreTile(group, t, extra, lead) {
       return "<div class='tile" + (lead ? " lead" : "") + "'><h2><span>" + esc(group) + "</span>" +
         (lead ? "<span class='badge'>🏆 vorne</span>" : "") + "</h2>" +
-        "<div class='nums'><div class='num judge'><small>Judge-Score</small><b>" + fmt(t.judge_score) + "</b></div>" +
-        "<div class='num code'><small>Code-Score</small><b>" + fmt(t.code_score) + "</b></div></div>" +
+        "<div class='nums'><div class='num judge'><small>Judge-Score</small><b>" + fmt(t.judge_score) + "</b>" +
+        (t.judge_max === null || t.judge_max === undefined ? "" : " <span>von max. " + fmt(t.judge_max) + "</span>") +
+        "</div><div class='num code'><small>Code-Score</small><b>" + fmt(t.code_score) + "</b> <span>von 10</span>" +
+        "</div></div>" + truth(t, true) +
         promptBox(group, t.prompt) +
         "<div class='meta'>" + esc(extra) + " · " + esc(t.modell) + " · " + ago(t.timestamp) + "</div></div>";
     }
@@ -103,7 +119,7 @@
     function curveTile(group, c, index) {
       return "<div class='tile curve'><h2>" + esc(group) + "</h2>" +
         "<div class='chart'><canvas id='chart-" + index + "'></canvas></div>" +
-        promptBox(group, c.prompt) +
+        truth(c, false) + promptBox(group, c.prompt) +
         "<div class='meta'>" + esc(c.modell) + " · " + ago(c.timestamp) + "</div></div>";
     }
 
@@ -111,6 +127,9 @@
       const canvas = document.getElementById("chart-" + index);
       if (!canvas || !window.Chart) return;
       const labels = c.points.map((p) => [p.komplexitaet, p.snippet.replace(/^qb_/, "")]);
+      const judgeMax = c.judge_max === null || c.judge_max === undefined ? 2 : c.judge_max;
+      const judgeValues = c.points.map((p) => p.judge_score).filter((v) => v !== null);
+      const judgeMin = Math.min(0, ...judgeValues);
       charts.push(new Chart(canvas, {
         type: "line",
         data: { labels, datasets: [
@@ -118,6 +137,8 @@
             borderColor: "#2a6fdb", backgroundColor: "#2a6fdb", borderWidth: 3, pointRadius: 5, spanGaps: true },
           { label: "Judge-Score", data: c.points.map((p) => p.judge_score), yAxisID: "judge",
             borderColor: "#c25e00", backgroundColor: "#c25e00", borderWidth: 3, pointRadius: 5, spanGaps: true },
+          { label: "max.", data: c.points.map(() => judgeMax), yAxisID: "judge", borderColor: "#c25e00",
+            borderDash: [6, 5], borderWidth: 1.5, pointRadius: 0 },
         ] },
         options: {
           animation: false, maintainAspectRatio: false, plugins: { legend: { display: false } },
@@ -125,7 +146,7 @@
             x: { ticks: { font: { size: 14 } } },
             code: { position: "left", min: 0, max: 10, title: { display: true, text: "Code", color: "#2a6fdb" },
                     ticks: { color: "#2a6fdb", font: { size: 14 } } },
-            judge: { position: "right", grid: { drawOnChartArea: false },
+            judge: { position: "right", grid: { drawOnChartArea: false }, min: judgeMin, max: judgeMax,
                      title: { display: true, text: "Judge", color: "#c25e00" },
                      ticks: { color: "#c25e00", font: { size: 14 }, precision: 0 } },
           },
@@ -141,9 +162,12 @@
       charts = [];
       const tiles = data.rounds[round] || {};
       const legend = document.getElementById("legend");
-      legend.innerHTML = round === "3"
-        ? "<i style='background:var(--code)'></i>Code-Score (links, 0–10)<i style='background:var(--judge)'></i>Judge-Score (rechts)"
-        : round === "4" ? "Judge-Score = Summe über 5 Snippets · Code-Score = Durchschnitt" : "";
+      const explain = "<b>Code-Score</b>: Note des Modells für den Code (0–10) · <b>Judge-Score</b>: +2 je gefundenem " +
+        "echten Fehler, −1 je Fehlalarm";
+      legend.innerHTML = explain + (round === "3"
+        ? "<br><i style='background:var(--code)'></i>Code-Score (links)<i style='background:var(--judge)'></i>" +
+          "Judge-Score (rechts, gestrichelt = max.)"
+        : round === "4" ? "<br>Runde 4: Judge-Score und Treffer summiert über 5 Snippets, Code-Score = Durchschnitt" : "");
       const html = data.groups.map((g, i) => {
         const t = tiles[g];
         if (!t) return emptyTile(g);

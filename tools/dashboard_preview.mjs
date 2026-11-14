@@ -34,25 +34,27 @@ const now = Date.now();
 let id = 0;
 const rows = [];
 
-function add(gruppe, runde, snippet, komplexitaet, code, judge, einreichung, minutesAgo) {
+function add(gruppe, runde, snippet, komplexitaet, code, [gefunden, fehlalarme], einreichung, minutesAgo) {
+  const fehlerGesamt = snippet === "bank_account" ? 6 : 1;
   id += 1;
   const r = Object.fromEntries(FIELDS.map((f) => [f, ""]));
   rows.push(Object.assign(r, {
     timestamp: new Date(now - minutesAgo * 60000).toISOString(), run_id: "r" + id, session_id: "preview",
     gruppe, runde, snippet, komplexitaet, modell: MODELS[gruppe], prompt: PROMPTS[gruppe],
-    code_score: code, judge_score: judge, einreichung,
+    code_score: code, judge_score: 2 * gefunden - fehlalarme, judge_max: 2 * fehlerGesamt, gefunden,
+    fehler_gesamt: fehlerGesamt, fehlalarme, einreichung,
   }));
 }
 
 // Gruppe 4 hat noch nichts gesendet (in Runde 1 nur verbunden).
 Object.keys(PROMPTS).forEach((g, gi) => {
-  add(g, 1, "bank_account", "", 6.2 - gi, 2 + gi, g + "-1", 3 + gi);
-  add(g, 2, "bank_account", "", [3.8, 6.9, 5.2][gi], [7, 4, 5][gi], g + "-2", 2 + gi);
-  SNIPPETS.forEach(([s, level], i) => add(g, 3, s, level, 8.5 - i * (1 + gi * 0.3), [2, 1, 2][gi] - i % 3 + gi,
-                                          g + "-3", 1 + gi));
+  add(g, 1, "bank_account", "", 6.2 - gi, [2 + gi, 1], g + "-1", 3 + gi);
+  add(g, 2, "bank_account", "", [3.8, 6.9, 5.2][gi], [[4, 1], [2, 0], [3, 1]][gi], g + "-2", 2 + gi);
+  SNIPPETS.forEach(([s, level], i) => add(g, 3, s, level, 8.5 - i * (1 + gi * 0.3),
+                                          [(i + gi) % 3 === 2 ? 0 : 1, i === 3 ? 1 : 0], g + "-3", 1 + gi));
   SNIPPETS.forEach(([s, level], i) => {
     if (gi === 2 && i === 2) return; // ein fehlgeschlagenes Snippet → 4/5
-    add(g, 4, s, level, 7 - i * 0.5, [3, 2, 3][gi] - (i % 2), g + "-4", 1);
+    add(g, 4, s, level, 7 - i * 0.5, [(i + gi) % 2 === 0 ? 1 : 0, gi === 1 && i === 4 ? 1 : 0], g + "-4", 1);
   });
 });
 
