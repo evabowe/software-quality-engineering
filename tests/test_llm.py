@@ -66,6 +66,13 @@ def test_complete_success(fake_api):
     assert request["json"]["temperature"] == 0
     assert request["json"]["max_tokens"] == config.MAX_TOKENS
     assert request["json"]["response_format"] == {"type": "json_object"}
+    assert result.finish_reason == "stop"
+
+
+def test_answer_budget_leaves_room_for_reasoning():
+    # GPT-6 Luna denkt vor der Antwort; Denk-Tokens zählen in max_tokens. Mit 2000 wurden
+    # strenge Rollen-Prompts abgeschnitten (gemessen: 1875 Reasoning-Tokens, finish_reason=length).
+    assert config.MAX_TOKENS >= 16000
 
 
 def test_server_error_becomes_error_result(fake_api):

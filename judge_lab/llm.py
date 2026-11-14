@@ -27,6 +27,7 @@ class LLMResult:
     tokens_in: int | None
     tokens_out: int | None
     error: str | None = None
+    finish_reason: str | None = None  # "length" = an max_tokens abgeschnitten
 
 
 class ChatClient:
@@ -63,6 +64,7 @@ class ChatClient:
             latency_s=time.perf_counter() - started,
             tokens_in=usage.prompt_tokens if usage else None,
             tokens_out=usage.completion_tokens if usage else None,
+            finish_reason=response.choices[0].finish_reason,
         )
 
 

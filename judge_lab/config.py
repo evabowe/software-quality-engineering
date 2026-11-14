@@ -26,7 +26,9 @@ WEIGHTS = {"functional_correctness": 0.40, "reliability": 0.20, "maintainability
 POINTS = {"tp": 2, "fp_bug": -1}
 
 TEMPERATURE = 0.0  # Reproduzierbarkeit; Abweichung zum Paper (siehe prompts/ADAPTATION.md)
-MAX_TOKENS = 2000
+# Reasoning-Modelle wie GPT-6 Luna zählen ihre Denk-Tokens mit (gemessen bis ~1900); die Antwort braucht
+# bis ~2500 mehr. Kosten bei 16000: ≤ 0,01 $ pro Aufruf.
+MAX_TOKENS = 16000
 TIMEOUT_S = 90  # Sekunden pro LLM-Aufruf
 MAX_RETRIES = 3  # bei 429/5xx/Timeout, exponentieller Backoff im openai-SDK
 CONCURRENCY = 6  # parallele Aufrufe in bewerte_alle

@@ -25,11 +25,11 @@ class FakeClient:
     provider = "openrouter"
     model_id = "fake/model"
 
-    def __init__(self, text="", error=None):
-        self.text, self.error = text, error
+    def __init__(self, text="", error=None, finish_reason="stop"):
+        self.text, self.error, self.finish_reason = text, error, finish_reason
 
     def complete(self, messages):
-        return LLMResult(self.text, 0.1, 10, 10, self.error)
+        return LLMResult(self.text, 0.1, 10, 10, self.error, self.finish_reason)
 
 
 def use_client(monkeypatch, client):
@@ -174,6 +174,12 @@ def test_bewerte_answer_without_findings_and_scores_is_unreadable(monkeypatch, a
     use_client(monkeypatch, FakeClient(antwort))
     r = bewerte("x")
     assert r["judge_score"] is None and r["code_score"] is None and "nicht lesbar" in r["fehler"]
+
+
+def test_bewerte_truncated_answer_says_so(monkeypatch):
+    use_client(monkeypatch, FakeClient('{"findings": [{"line_start": 3', finish_reason="length"))
+    r = bewerte("x")
+    assert r["judge_score"] is None and "abgeschnitten" in r["fehler"]
 
 
 # --- sende -------------------------------------------------------------------

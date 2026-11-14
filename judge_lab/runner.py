@@ -16,6 +16,7 @@ def _combine(first: LLMResult, second: LLMResult) -> LLMResult:
         tokens_in=total(first.tokens_in, second.tokens_in),
         tokens_out=total(first.tokens_out, second.tokens_out),
         error=second.error,
+        finish_reason=second.finish_reason,
     )
 
 

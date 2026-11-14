@@ -29,6 +29,7 @@ _ZUSTAND = {"gruppe": "", "key": ""}
 _join = _join_module.join
 
 UNLESBAR = "Die Antwort des Modells war nicht lesbar – bitte noch einmal versuchen."
+ABGESCHNITTEN = "Die Antwort des Modells wurde abgeschnitten (zu lang) – bitte noch einmal versuchen."
 
 
 # --- verbinde -----------------------------------------------------------------
@@ -96,7 +97,7 @@ def _bewerte_snippet(client, prompt: str, snippet: Snippet, modell: str, einreic
         )
     if verdict is None or not (verdict.findings or verdict.scores):
         # Abgeschnittene Antwort oder Ablehnung: kein Urteil – nicht als „0 Fehler gefunden“ werten.
-        return _fehlschlag(ergebnis, UNLESBAR)
+        return _fehlschlag(ergebnis, ABGESCHNITTEN if result.finish_reason == "length" else UNLESBAR)
     ergebnis["code_score"] = weighted_score(verdict.scores)
     ergebnis["judge_score"] = challenge_points([match_findings(verdict.findings, snippet.defects)])
     return ergebnis
