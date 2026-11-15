@@ -38,7 +38,7 @@ def update_meta(meta_path: Path, values: dict) -> None:
 
 
 def main() -> int:
-    for meta_path in sorted((REPO_ROOT / "snippets").glob("*/meta.yaml")):
+    for meta_path in sorted((REPO_ROOT / "snippets").rglob("meta.yaml")):
         values = measure(meta_path.parent)
         update_meta(meta_path, values)
         print(f"{meta_path.parent.name:<22} kognitiv {values['cognitive']:>3}   LOC {values['loc']:>3}")

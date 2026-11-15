@@ -1,0 +1,80 @@
+# Ground Truth für ein eigenes Lehrbeispiel (Satz complex). Wird nie an ein LLM gesendet.
+id: library
+title: Bibliothek
+code_file: library.py
+source:
+  name: eigenes Lehrbeispiel
+  license: MIT
+complexity:
+  level: CL3               # complexipy-Ziel: CL1 = 10, je Stufe +5
+  cognitive: 20
+  loc: 82
+spec: docstring             # Regeln stehen im Modul-Docstring
+tests:
+  origin: original
+  timeout_s: 5
+defects:
+  - id: B1
+    kind: bug
+    lines: [60, 60]
+    accept_lines: [60, 61]
+    description: "ein viertes Buch kann ausgeliehen werden (`>` statt `>=`)"
+    fix: "        if self.count_loans(member) >= MAX_LOANS:"
+  - id: B2
+    kind: bug
+    lines: [64, 65]
+    accept_lines: [64, 65]
+    description: "die Reservierung endet nicht mit der Ausleihe durch die reservierende Person: Danach bleibt das Buch für alle anderen gesperrt"
+    fix_op: insert_after
+    fix: "        self.reservations.pop(title, None)"
+  - id: B3
+    kind: bug
+    lines: [76, 76]
+    accept_lines: [76, 76]
+    description: "Gebühren mehrerer Ausleihen werden überschrieben statt addiert"
+    fix: "            self.fees[member] = self.fees.get(member, 0.0) + fee"
+  - id: B4
+    kind: bug
+    lines: [49, 50]
+    accept_lines: [48, 50]
+    description: "fehlende Prüfung: auch ein verfügbares, nicht ausgeliehenes Buch lässt sich reservieren"
+    fix_op: insert_after
+    fix: "        if self.loans[title] is None:\n            raise ValueError(\"Nur ausgeliehene Bücher können reserviert werden.\")"
+  - id: Q1
+    kind: quality
+    lines: [74, 75]
+    accept_lines: [74, 75]
+    description: "toter Zweig `if fee < 0`: die Gebühr ist hier immer positiv"
+    fix: ""
+  - id: Q2
+    kind: quality
+    lines: [45, 45]
+    accept_lines: [45, 45]
+    description: "ungenutzter Parameter `day` täuscht vor, dass Reservierungen ein Datum haben"
+    fix: "    def reserve(self, title, member):"
+  - id: B5
+    kind: bug
+    lines: [87, 87]
+    accept_lines: [87, 87]
+    description: "due_day nennt einen Tag zu früh: die Rückgabe am Tag danach ist laut Gebührenberechnung noch kostenlos"
+    fix: "        return start + LOAN_DAYS"
+  - id: B6
+    kind: bug
+    lines: [93, 93]
+    accept_lines: [93, 93]
+    description: "`round` ohne Nachkommastellen rundet die Gebühren auf ganze Euro statt auf Cent"
+    fix: "            \"fees\": round(self.fees.get(member, 0.0), 2),"
+  - id: Q3
+    kind: quality
+    lines: [22, 22]
+    accept_lines: [22, 22]
+    description: "ungenutzte Konstante `GRACE_DAYS` täuscht eine Kulanzfrist vor, die es nicht gibt"
+    fix: ""
+# Köder: korrekter Code, der verdächtig aussieht. Wird er als Bug gemeldet, zählt das als Fehlalarm.
+decoys:
+  - lines: [92, 92]
+    description: "richtig: zählt genau die Reservierungen dieses Mitglieds"
+  - lines: [62, 62]
+    description: "`>` ist richtig: genau 5 EUR offene Gebühren sind noch erlaubt"
+  - lines: [71, 71]
+    description: "richtig gerechnet: Rückgabe an Tag 15 nach Ausleihe an Tag 1 ist noch pünktlich"

@@ -1,0 +1,87 @@
+# Ground Truth für ein eigenes Lehrbeispiel (Satz complex). Wird nie an ein LLM gesendet.
+id: cinema
+title: Kinosaal
+code_file: cinema.py
+source:
+  name: eigenes Lehrbeispiel
+  license: MIT
+complexity:
+  level: CL5               # complexipy-Ziel: CL1 = 10, je Stufe +5
+  cognitive: 30
+  loc: 79
+spec: docstring             # Regeln stehen im Modul-Docstring
+tests:
+  origin: original
+  timeout_s: 5
+defects:
+  - id: B1
+    kind: bug
+    lines: [41, 46]
+    accept_lines: [41, 46]
+    description: "Buchung ist nicht atomar: Plätze vor einem ungültigen oder belegten Platz bleiben gebucht"
+    fix: "        for seat in seats:\n            if not self.is_valid(row, seat):\n                raise ValueError(\"Diesen Platz gibt es nicht.\")\n            if (row, seat) in self.booked:\n                raise ValueError(\"Der Platz ist schon belegt.\")\n        for seat in seats:\n            self.booked.add((row, seat))"
+  - id: B2
+    kind: bug
+    lines: [53, 53]
+    accept_lines: [53, 54]
+    description: "find_block prüft den letzten möglichen Block einer Reihe nicht (Off-by-one in `range`)"
+    fix: "            for first in range(1, self.seats_per_row - n + 2):"
+  - id: B3
+    kind: bug
+    lines: [61, 61]
+    accept_lines: [61, 62]
+    description: "die letzten drei statt zwei Reihen kosten den Logenpreis"
+    fix: "        if row > self.rows - LOGE_ROWS:"
+  - id: B4
+    kind: bug
+    lines: [40, 40]
+    accept_lines: [39, 40]
+    description: "fehlende Prüfung: derselbe Platz kann mehrfach in einer Buchung stehen (wird einmal gebucht, aber mehrfach gezählt)"
+    fix_op: insert_after
+    fix: "        if len(set(seats)) != len(seats):\n            raise ValueError(\"Jeder Platz darf nur einmal vorkommen.\")"
+  - id: Q1
+    kind: quality
+    lines: [18, 18]
+    accept_lines: [18, 18]
+    description: "ungenutzter Import `math`"
+    fix: ""
+  - id: Q2
+    kind: quality
+    lines: [69, 69]
+    accept_lines: [68, 69]
+    description: "unerreichbarer Code nach `return`"
+    fix: ""
+  - id: Q3
+    kind: quality
+    lines: [76, 77]
+    accept_lines: [76, 77]
+    description: "überflüssige Bedingung: nach der Prüfung oben sind alle Plätze sicher gebucht"
+    fix: "            self.booked.remove((row, seat))"
+  - id: B5
+    kind: bug
+    lines: [83, 83]
+    accept_lines: [83, 83]
+    description: "free_seats_in_row zieht die gebuchten Plätze aller Reihen ab statt nur die der gefragten Reihe"
+    fix: "        return self.seats_per_row - len([seat for seat in self.booked if seat[0] == row])"
+  - id: B6
+    kind: bug
+    lines: [86, 86]
+    accept_lines: [86, 86]
+    description: "booked_seats gibt das interne Set zurück statt einer Kopie; spätere Buchungen ändern die „Momentaufnahme“"
+    fix: "        return set(self.booked)"
+  - id: Q4
+    kind: quality
+    lines: [92, 92]
+    accept_lines: [92, 92]
+    description: "toter Wert: `label = \"\"` wird sofort überschrieben"
+    fix: ""
+# Köder: korrekter Code, der verdächtig aussieht. Wird er als Bug gemeldet, zählt das als Fehlalarm.
+decoys:
+  - lines: [89, 89]
+    description: "richtig: echte Division und Rundung auf eine Nachkommastelle"
+  - lines: [36, 36]
+    description: "Grenzen richtig: Zählung ab 1, letzte Reihe und letzter Platz eingeschlossen"
+  - lines: [65, 65]
+    description: "`>=` ist richtig: Rabatt ab 6 Plätzen"
+  - lines: [73, 73]
+    description: "Stornieren ist richtig atomar: erst alle Plätze prüfen, dann freigeben"

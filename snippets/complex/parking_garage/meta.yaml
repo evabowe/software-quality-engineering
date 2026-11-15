@@ -1,0 +1,86 @@
+# Ground Truth für ein eigenes Lehrbeispiel (Satz complex). Wird nie an ein LLM gesendet.
+id: parking_garage
+title: Parkhaus
+code_file: parking_garage.py
+source:
+  name: eigenes Lehrbeispiel
+  license: MIT
+complexity:
+  level: CL2               # complexipy-Ziel: CL1 = 10, je Stufe +5
+  cognitive: 15
+  loc: 86
+spec: docstring             # Regeln stehen im Modul-Docstring
+tests:
+  origin: original
+  timeout_s: 5
+defects:
+  - id: B1
+    kind: bug
+    lines: [33, 33]
+    accept_lines: [33, 34]
+    description: "genau 30 Minuten sind nicht kostenlos (`<` statt `<=`)"
+    fix: "    if minutes <= FREE_MINUTES:"
+  - id: B2
+    kind: bug
+    lines: [39, 39]
+    accept_lines: [39, 39]
+    description: "nur volle statt angefangene Stunden werden berechnet (abgerundet statt aufgerundet)"
+    fix: "    hours = -(-rest // 60)"
+  - id: B3
+    kind: bug
+    lines: [41, 41]
+    accept_lines: [41, 41]
+    description: "volle Tage kosten 48 EUR statt des Tageshöchstsatzes von 15 EUR"
+    fix: "    return full_days * DAILY_CAP + day_fee"
+  - id: B4
+    kind: bug
+    lines: [71, 71]
+    accept_lines: [70, 71]
+    description: "beim erneuten Bezahlen wird der volle Betrag statt nur der Differenz zum bereits Bezahlten fällig"
+    fix: "        due = max(fee - already_paid, 0.0)"
+  - id: Q1
+    kind: quality
+    lines: [35, 36]
+    accept_lines: [35, 36]
+    description: "toter Zweig `if minutes == 0`: kurze Parkdauern sind schon vorher abgehandelt"
+    fix: ""
+  - id: Q2
+    kind: quality
+    lines: [84, 84]
+    accept_lines: [83, 84]
+    description: "unerreichbarer Code nach `raise`"
+    fix: ""
+  - id: Q3
+    kind: quality
+    lines: [91, 91]
+    accept_lines: [91, 91]
+    description: "ungenutzter Parameter `time` täuscht eine Abhängigkeit von der Uhrzeit vor"
+    fix: "    def free_spaces(self):"
+  - id: B5
+    kind: bug
+    lines: [95, 95]
+    accept_lines: [95, 95]
+    description: "Ganzzahldivision: die Auslastung ist 0 %, solange das Parkhaus nicht voll ist"
+    fix: "        return len(self.parked) / self.capacity * 100"
+  - id: B6
+    kind: bug
+    lines: [98, 98]
+    accept_lines: [98, 98]
+    description: "die Parkdauer wird mit vertauschten Werten berechnet und ist negativ"
+    fix: "        minutes = time - self.parked[plate]"
+  - id: Q4
+    kind: quality
+    lines: [52, 52]
+    accept_lines: [52, 52]
+    description: "ungenutztes Attribut `opened_at`"
+    fix: ""
+# Köder: korrekter Code, der verdächtig aussieht. Wird er als Bug gemeldet, zählt das als Fehlalarm.
+decoys:
+  - lines: [27, 27]
+    description: "Ganzzahldivision und Rest sind hier richtig: volle Stunden und restliche Minuten"
+  - lines: [57, 57]
+    description: "`>=` ist richtig: sind so viele Autos drin wie Plätze, ist das Parkhaus voll"
+  - lines: [85, 85]
+    description: "`>` ist richtig: genau 15 Minuten nach dem Bezahlen darf man noch ausfahren"
+  - lines: [64, 64]
+    description: "Reihenfolge richtig: Dauerparker zahlen auch bei verlorenem Ticket nichts"

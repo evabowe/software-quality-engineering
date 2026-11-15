@@ -1,0 +1,78 @@
+# Ground Truth für ein eigenes Lehrbeispiel (Satz complex). Wird nie an ein LLM gesendet.
+id: warehouse
+title: Lager
+code_file: warehouse.py
+source:
+  name: eigenes Lehrbeispiel
+  license: MIT
+complexity:
+  level: CL4               # complexipy-Ziel: CL1 = 10, je Stufe +5
+  cognitive: 25
+  loc: 75
+spec: docstring             # Regeln stehen im Modul-Docstring
+tests:
+  origin: original
+  timeout_s: 5
+defects:
+  - id: B1
+    kind: bug
+    lines: [47, 47]
+    accept_lines: [47, 47]
+    description: "ausgeliefert wird zuerst die Charge, die am spätesten abläuft, statt die am frühesten"
+    fix: "        batches.sort(key=lambda batch: batch[1])"
+  - id: B2
+    kind: bug
+    lines: [50, 50]
+    accept_lines: [50, 51]
+    description: "eine Charge, die heute abläuft, wird nicht mehr ausgeliefert (`<=` statt `<`)"
+    fix: "            if batch[1] < today:"
+  - id: B3
+    kind: bug
+    lines: [44, 44]
+    accept_lines: [44, 45]
+    description: "abgelaufene Chargen zählen zum verfügbaren Bestand; dann wird teilweise ausgeliefert statt gar nicht"
+    fix: "        available = self.stock(product, today)"
+  - id: Q1
+    kind: quality
+    lines: [74, 75]
+    accept_lines: [74, 75]
+    description: "toter Zweig `if minimum is None`: set_min_stock speichert nie None"
+    fix: ""
+  - id: Q2
+    kind: quality
+    lines: [28, 28]
+    accept_lines: [28, 28]
+    description: "ungenutzter Parameter `supplier` täuscht vor, dass der Lieferant gespeichert wird"
+    fix: "    def receive(self, product, quantity, expiry_day):"
+  - id: Q3
+    kind: quality
+    lines: [56, 56]
+    accept_lines: [56, 56]
+    description: "irreführender Rückgabewert: gibt die angefragte statt der tatsächlich gelieferten Menge zurück"
+    fix: "        return quantity - remaining"
+  - id: B5
+    kind: bug
+    lines: [19, 21]
+    accept_lines: [19, 21]
+    description: "veränderlicher Standardwert `{}`: alle Lager ohne eigene Angabe teilen sich dasselbe Dict mit Mindestbeständen"
+    fix: "    def __init__(self, min_stock=None):\n        self.batches = {}        # Produkt -> Liste von [Menge, Ablauftag]\n        self.min_stock = dict(min_stock or {})      # Produkt -> Mindestbestand"
+  - id: B6
+    kind: bug
+    lines: [81, 81]
+    accept_lines: [81, 81]
+    description: "days_until_expiry nimmt die Charge, die am spätesten abläuft, statt der nächsten (`max` statt `min`)"
+    fix: "        return min(batch[1] for batch in self.batches[product]) - today"
+  - id: Q4
+    kind: quality
+    lines: [84, 84]
+    accept_lines: [84, 84]
+    description: "toter Wert: `result = 0` wird sofort überschrieben"
+    fix: ""
+# Köder: korrekter Code, der verdächtig aussieht. Wird er als Bug gemeldet, zählt das als Fehlalarm.
+decoys:
+  - lines: [36, 36]
+    description: "`>=` ist richtig: am Ablauftag ist die Charge noch verkäuflich"
+  - lines: [63, 63]
+    description: "`<` ist richtig: abgelaufen ist eine Charge erst nach ihrem Ablauftag"
+  - lines: [76, 76]
+    description: "`<` ist richtig: genau der Mindestbestand löst keine Nachbestellung aus"

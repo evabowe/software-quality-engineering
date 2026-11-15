@@ -25,7 +25,7 @@ def test_update_meta_preserves_other_lines(tmp_path):
 
 def test_measure_bank_account():
     # von complexipy gemessener Wert für bank_account.py
-    assert measure(SNIPPETS_DIR / "bank_account")["cognitive"] == 9
+    assert measure(SNIPPETS_DIR / "simple" / "bank_account")["cognitive"] == 9
 
 
 def test_measure_counts_non_blank_lines(tmp_path):

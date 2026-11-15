@@ -4,7 +4,7 @@ Aufruf (von der Projektwurzel):
 
     python tools/import_quixbugs.py <pfad-zum-quixbugs-checkout> bitcount quicksort …
 
-Pro Programm entsteht ``snippets/qb_<name>/`` mit
+Pro Programm entsteht ``snippets/simple/qb_<name>/`` mit
 - ``<name>.py``: byte-identische Kopie aus ``python_programs/``,
 - ``tests.py``: die ersten 6 Fälle aus ``json_testcases/<name>.json`` als lesbare pytest-Funktionen,
 - ``meta.yaml``: Herkunft (Commit, SHA-256). Die Ground Truth (``defects``) wird
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("names", nargs="+", help="Programmnamen, z. B. quicksort")
     args = parser.parse_args(argv)
     for name in args.names:
-        folder = import_program(args.checkout, name, REPO_ROOT / "snippets")
+        folder = import_program(args.checkout, name, REPO_ROOT / "snippets" / "simple")
         print(f"übernommen: {folder.relative_to(REPO_ROOT)}")
     return 0
 

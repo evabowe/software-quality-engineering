@@ -135,10 +135,13 @@ def bewerte(prompt: str, snippet: str = "bank_account", modell: str = DEFAULT_MO
     return _bewerte_snippet(client, prompt, ziel, modell, einreichung)
 
 
-def bewerte_alle(prompt: str, modell: str = DEFAULT_MODEL) -> list[dict]:
-    """Bewertet die fünf Snippets L1–L5 parallel (Runde 3 und 4); eine gemeinsame Einreichung."""
+def bewerte_alle(prompt: str, modell: str = DEFAULT_MODEL, satz: str = "simple") -> list[dict]:
+    """Bewertet die fünf Snippets eines Satzes parallel (Runde 3 und 4); eine gemeinsame Einreichung.
+
+    ``satz="simple"``: L1–L5 (QuixBugs), ``satz="complex"``: CL1–CL5 (eigene Lehrbeispiele).
+    """
     einreichung = uuid.uuid4().hex
-    ziele = [s for s in load_snippets() if s.level]
+    ziele = [s for s in load_snippets(satz=satz) if s.level]
     fehler = "Der Prompt ist leer." if not (prompt or "").strip() else None
     client = None
     if not fehler:

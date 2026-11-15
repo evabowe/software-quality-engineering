@@ -9,7 +9,6 @@ import hashlib
 
 import pytest
 
-from judge_lab.config import SNIPPETS_DIR
 from judge_lab.snippets import get_snippet, load_snippets
 from snippet_runner import run_snippet_tests
 
@@ -33,7 +32,7 @@ def test_patched_code_passes(snippet, tmp_path):
 
 @pytest.mark.parametrize("snippet", QUIXBUGS, ids=lambda s: s.id)
 def test_quixbugs_source_unchanged(snippet):
-    data = (SNIPPETS_DIR / snippet.id / snippet.code_file).read_bytes()
+    data = (snippet.folder / snippet.code_file).read_bytes()
     assert hashlib.sha256(data).hexdigest() == snippet.source["sha256"]
 
 

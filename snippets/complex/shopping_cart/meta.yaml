@@ -1,0 +1,78 @@
+# Ground Truth für ein eigenes Lehrbeispiel (Satz complex). Wird nie an ein LLM gesendet.
+id: shopping_cart
+title: Warenkorb
+code_file: shopping_cart.py
+source:
+  name: eigenes Lehrbeispiel
+  license: MIT
+complexity:
+  level: CL1               # complexipy-Ziel: CL1 = 10, je Stufe +5
+  cognitive: 10
+  loc: 82
+spec: docstring             # Regeln stehen im Modul-Docstring
+tests:
+  origin: original
+  timeout_s: 5
+defects:
+  - id: B1
+    kind: bug
+    lines: [50, 50]
+    accept_lines: [49, 50]
+    description: "erneutes Hinzufügen überschreibt die Menge, statt sie zu erhöhen"
+    fix: "            self.items[name] = (price, old_quantity + quantity)"
+  - id: B2
+    kind: bug
+    lines: [81, 81]
+    accept_lines: [81, 82]
+    description: "Rabatt erst über 100 EUR statt ab 100 EUR (`>` statt `>=`)"
+    fix: "        if self.subtotal() >= DISCOUNT_FROM:"
+  - id: B3
+    kind: bug
+    lines: [86, 86]
+    accept_lines: [86, 87]
+    description: "Versandfreiheit wird am Warenwert vor Rabatt gemessen statt nach Rabatt"
+    fix: "        if self.subtotal() - self.discount() >= FREE_SHIPPING_FROM:"
+  - id: Q1
+    kind: quality
+    lines: [46, 47]
+    accept_lines: [45, 47]
+    description: "toter Zweig `elif quantity == 0`: Menge 0 löst schon vorher den Fehler aus"
+    fix: ""
+  - id: Q2
+    kind: quality
+    lines: [90, 90]
+    accept_lines: [90, 90]
+    description: "ungenutzter Parameter `currency` täuscht eine Währungsumrechnung vor"
+    fix: "    def total(self):"
+  - id: B4
+    kind: bug
+    lines: [36, 36]
+    accept_lines: [36, 36]
+    description: "die enthaltene Mehrwertsteuer wird aufgeschlagen statt aus dem Bruttobetrag herausgerechnet"
+    fix: "    return round(gross - gross / (1 + VAT_RATE), 2)"
+  - id: B5
+    kind: bug
+    lines: [66, 66]
+    accept_lines: [66, 66]
+    description: "item_count zählt verschiedene Artikel statt aller Einheiten"
+    fix: "        return sum(quantity for _, quantity in self.items.values())"
+  - id: B6
+    kind: bug
+    lines: [101, 101]
+    accept_lines: [101, 101]
+    description: "die Zeile „Gesamt“ rechnet selbst und vergisst den Rabatt, statt total() zu verwenden"
+    fix: "        lines.append(f\"Gesamt: {format_eur(self.total())}\")"
+  - id: Q3
+    kind: quality
+    lines: [23, 23]
+    accept_lines: [23, 23]
+    description: "ungenutzte Konstante `MAX_ITEMS` täuscht eine Obergrenze vor, die nirgends geprüft wird"
+    fix: ""
+# Köder: korrekter Code, der verdächtig aussieht. Wird er als Bug gemeldet, zählt das als Fehlalarm.
+decoys:
+  - lines: [27, 27]
+    description: "das Komma statt des Punkts ist gewollt (deutsche Schreibweise)"
+  - lines: [58, 58]
+    description: "`>` ist richtig: genau alle Einheiten zu entfernen ist erlaubt"
+  - lines: [44, 44]
+    description: "die Grenzen sind richtig: Preis 0 und Menge 0 sind ungültig"

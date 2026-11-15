@@ -1,4 +1,7 @@
-"""Snippet-Registry: lädt Code, Tests und Ground Truth aus ``snippets/<id>/``.
+"""Snippet-Registry: lädt Code, Tests und Ground Truth aus ``snippets/<satz>/<id>/``.
+
+Satz ``simple``: QuixBugs-Programme L1–L5 und das Bankkonto; Satz ``complex``: eigene
+Lehrbeispiele CL1–CL5 (gemessen mit complexipy, 10 bis 30 in 5er-Schritten).
 
 Jedes Snippet besteht aus der Programmdatei (Originalname, siehe ``code_file``),
 ``tests.py`` und ``meta.yaml``. Die Ground Truth (``defects``) bleibt im Python-
@@ -43,6 +46,8 @@ class Snippet:
     timeout_s: int
     source: dict = field(compare=False)
     defects: tuple[Defect, ...] = field(repr=False)
+    folder: Path = field(default=Path(), compare=False, repr=False)
+    satz: str = ""  # Name des Ordners unter snippets/, z. B. "simple" oder "complex"
 
     @property
     def line_count(self) -> int:
@@ -68,7 +73,7 @@ class Snippet:
         return "\n".join(lines) + "\n"
 
 
-def _load_one(folder: Path) -> Snippet:
+def _load_one(folder: Path, satz: str = "") -> Snippet:
     meta = yaml.safe_load((folder / "meta.yaml").read_text(encoding="utf-8"))
     complexity = meta.get("complexity") or {}
     defects = tuple(
@@ -97,12 +102,21 @@ def _load_one(folder: Path) -> Snippet:
         timeout_s=meta["tests"]["timeout_s"],
         source=meta.get("source") or {},
         defects=defects,
+        folder=folder,
+        satz=satz,
     )
 
 
-def load_snippets(root: Path = SNIPPETS_DIR) -> list[Snippet]:
-    """Alle Snippets, sortiert nach Komplexitätsstufe L1–L5; Snippets ohne Stufe zuletzt."""
-    snippets = [_load_one(meta.parent) for meta in root.glob("*/meta.yaml")]
+def _satz(folder: Path, root: Path) -> str:
+    teile = folder.relative_to(root).parts
+    return teile[0] if len(teile) > 1 else ""
+
+
+def load_snippets(root: Path = SNIPPETS_DIR, satz: str | None = None) -> list[Snippet]:
+    """Alle Snippets (optional nur eines Satzes), sortiert nach Stufe; Snippets ohne Stufe zuletzt."""
+    snippets = [_load_one(meta.parent, _satz(meta.parent, root)) for meta in root.rglob("meta.yaml")]
+    if satz is not None:
+        snippets = [s for s in snippets if s.satz == satz]
     return sorted(snippets, key=lambda s: (s.level is None, s.level or "", s.id))
 
 

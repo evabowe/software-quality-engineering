@@ -4,7 +4,7 @@ Dieses Repository enthält Inhalte aus einer fremden Quelle. Sie steht unter der
 
 ## QuixBugs
 
-- **Ordner:** `snippets/qb_*/` (jeweils die Programmdatei unverändert; `tests.py` ist aus den JSON-Testfällen erzeugt)
+- **Ordner:** `snippets/simple/qb_*/` (jeweils die Programmdatei unverändert; `tests.py` ist aus den JSON-Testfällen erzeugt)
 - **Quelle:** https://github.com/jkoppel/QuixBugs, Commit `4257f44b0ff1181dedaedee6a447e133219fcebf`
 - **Referenz:** Lin, D., Koppel, J., Chen, A., Solar-Lezama, A. (2017): *QuixBugs: A Multi-Lingual Program Repair Benchmark Set Based on the Quixey Challenge.* SPLASH Companion 2017.
 

@@ -62,13 +62,15 @@ ergebnis["gefunden"], ergebnis["fehler_gesamt"], ergebnis["fehlalarme"]   # 2, 6
 - **Rückgabe:** ein dict mit `code_score`, `judge_score`, `judge_max`, `gefunden`, `fehler_gesamt`, `fehlalarme`, `snippet`, `komplexitaet`, `modell`, `prompt`, `gruppe`, `einreichung` und `fehler`.
 - **Fehler** (z. B. falscher Key, Guthaben leer, unlesbare Antwort): Es kommt eine Meldung, beide Scores sind `None` und `fehler` enthält den Grund. Einfach noch einmal ausführen.
 
-### `bewerte_alle(prompt, modell="openai/gpt-6-luna")`
+### `bewerte_alle(prompt, modell="openai/gpt-6-luna", satz="simple")`
 
 ```python
 ergebnisse = bewerte_alle("Du bist ein strenger Senior-Reviewer …")   # 1/5 fertig … 5/5 fertig
 ```
 
 Die Funktion bewertet die fünf Snippets parallel und gibt eine Liste mit fünf dicts in der Reihenfolge L1 → L5 zurück. Fällt ein Snippet aus, laufen die anderen trotzdem weiter.
+
+- **`satz`**: `"simple"` (Standard) nimmt die QuixBugs-Snippets L1–L5 aus `snippets/simple/`, `"complex"` die eigenen Lehrbeispiele CL1–CL5 aus `snippets/complex/`. Das Hands-on-Notebook nutzt `"complex"`.
 
 ### `sende(ergebnis, runde)`
 
@@ -119,6 +121,16 @@ Vorlagen gibt es bewusst nicht: Die Studierenden schreiben jeden Prompt selbst. 
 | `qb_next_permutation` | L5 | nächste Permutation |
 
 `bewerte_alle` nutzt die fünf Snippets mit Stufe, `bank_account` gehört nicht dazu.
+
+Satz `complex` (`snippets/complex/`, eigene Lehrbeispiele im Stil von `bank_account`, mit semantischen und Code-Qualitäts-Fehlern; Stufe nach complexipy gemessen):
+
+| Snippet | Stufe | complexipy | Thema |
+|---|---|---|---|
+| `shopping_cart` | CL1 | 10 | Warenkorb |
+| `parking_garage` | CL2 | 15 | Parkhaus |
+| `library` | CL3 | 20 | Bibliothek |
+| `warehouse` | CL4 | 25 | Lager |
+| `cinema` | CL5 | 30 | Kinosaal |
 
 ## 5. Was am Dashboard passiert
 
