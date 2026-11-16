@@ -12,8 +12,8 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # Standardmodell (am 14.11.2026 in openrouter.ai/api/v1/models vorhanden). Jede andere
 # OpenRouter-ID funktioniert ebenso; "mock" nutzt den Mock-Client ohne Kosten.
-DEFAULT_MODEL = "meta-llama/llama-3.2-3b-instruct"
-
+#DEFAULT_MODEL = "openai/gpt-4.1-nano"
+DEFAULT_MODEL = "google/gemini-3.1-flash-lite"
 # --- Judge ------------------------------------------------------------------
 
 # Gewichte der Bewertungsdimensionen (prompts/scale_iso25010.md); Summe 1.0
