@@ -7,8 +7,8 @@ from judge_lab.matching import MatchResult
 from judge_lab.scoring import challenge_points, weighted_score
 
 
-def _result(tp, fp):
-    return MatchResult(tp=tp, fp=fp, neutral=0, n_defects=1, found_defect_ids=(), assignments={},
+def _result(tp, fp, n_defects=None):
+    return MatchResult(tp=tp, fp=fp, neutral=0, n_defects=tp if n_defects is None else n_defects, found_defect_ids=(), assignments={},
                        recall=None, precision=None)
 
 
@@ -25,6 +25,11 @@ def test_weighted_score_missing_dimension():
 def test_challenge_points():
     # 2 Punkte je Treffer, -1 je False Positive, über alle Snippets summiert
     assert challenge_points([_result(2, 1), _result(1, 1), _result(0, 0)]) == 4
+
+
+def test_challenge_points_missed_defects():
+    # -3 je übersehenem Defekt: (2·2 − 1 − 3·4) + (0 − 0 − 3·1) = −9 − 3
+    assert challenge_points([_result(2, 1, n_defects=6), _result(0, 0, n_defects=1)]) == -12
 
 
 def test_weights_sum_to_one():

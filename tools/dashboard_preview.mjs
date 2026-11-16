@@ -41,7 +41,7 @@ function add(gruppe, runde, snippet, komplexitaet, code, [gefunden, fehlalarme],
   rows.push(Object.assign(r, {
     timestamp: new Date(now - minutesAgo * 60000).toISOString(), run_id: "r" + id, session_id: "preview",
     gruppe, runde, snippet, komplexitaet, modell: MODELS[gruppe], prompt: PROMPTS[gruppe],
-    code_score: code, judge_score: 2 * gefunden - fehlalarme, judge_max: 2 * fehlerGesamt, gefunden,
+    code_score: code, judge_score: 2 * gefunden - fehlalarme - 3 * (fehlerGesamt - gefunden), judge_max: 2 * fehlerGesamt, gefunden,
     fehler_gesamt: fehlerGesamt, fehlalarme, einreichung,
   }));
 }

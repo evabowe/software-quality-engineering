@@ -82,7 +82,7 @@ def test_verbinde_again_switches_group(monkeypatch):
 
 def test_bewerte_mock_returns_both_scores():
     r = bewerte("Sei streng.", snippet="bank_account", modell="mock")
-    assert r["fehler"] is None and r["code_score"] == 6.0 and r["judge_score"] == 1  # Mock: 1 Treffer, 1 Fehlalarm
+    assert r["fehler"] is None and r["code_score"] == 6.0 and r["judge_score"] == -14  # Mock: 1 Treffer, 1 Fehlalarm, 5 übersehen
     assert set(r) == KEYS
     assert (r["snippet"], r["komplexitaet"], r["modell"], r["prompt"]) == ("bank_account", "", "mock", "Sei streng.")
 

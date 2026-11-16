@@ -163,7 +163,7 @@
       const tiles = data.rounds[round] || {};
       const legend = document.getElementById("legend");
       const explain = "<b>Code-Score</b>: Note des Modells für den Code (0–10) · <b>Judge-Score</b>: +2 je gefundenem " +
-        "echten Fehler, −1 je Fehlalarm";
+        "echten Fehler, −1 je Fehlalarm, −3 je übersehenem Fehler";
       legend.innerHTML = explain + (round === "3"
         ? "<br><i style='background:var(--code)'></i>Code-Score (links)<i style='background:var(--judge)'></i>" +
           "Judge-Score (rechts, gestrichelt = max.)"

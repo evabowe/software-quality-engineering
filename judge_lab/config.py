@@ -19,8 +19,8 @@ DEFAULT_MODEL = "google/gemini-3.1-flash-lite"
 # Gewichte der Bewertungsdimensionen (prompts/scale_iso25010.md); Summe 1.0
 WEIGHTS = {"functional_correctness": 0.40, "reliability": 0.20, "maintainability": 0.25, "readability": 0.15}
 
-# Judge-Score: Punkte pro echtem Defekt bzw. Fehlalarm
-POINTS = {"tp": 2, "fp_bug": -1}
+# Judge-Score: Punkte pro gefundenem Defekt, Fehlalarm bzw. übersehenem Defekt
+POINTS = {"tp": 2, "fp_bug": -1, "fn": -3}
 
 TEMPERATURE = 0.0  # Reproduzierbarkeit (Reasoning-Modelle ignorieren den Wert)
 # Reasoning-Modelle wie GPT-6 Luna zählen ihre Denk-Tokens mit (gemessen bis ~1900); die Antwort braucht

@@ -16,5 +16,5 @@ def weighted_score(scores: Mapping[str, float]) -> float | None:
 
 
 def challenge_points(results: Iterable[MatchResult]) -> int:
-    """Σ (2·Treffer − 1·False Positive) über alle Snippets einer Einreichung."""
-    return sum(POINTS["tp"] * r.tp + POINTS["fp_bug"] * r.fp for r in results)
+    """Σ (2·Treffer − 1·False Positive − 3·übersehener Defekt) über alle Snippets einer Einreichung."""
+    return sum(POINTS["tp"] * r.tp + POINTS["fp_bug"] * r.fp + POINTS["fn"] * (r.n_defects - r.tp) for r in results)

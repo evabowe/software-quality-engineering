@@ -50,13 +50,13 @@ verbinde("K7QX")          # → ✅ Verbunden als Gruppe 2.
 ```python
 ergebnis = bewerte("Du bist ein strenger Senior-Reviewer …", snippet="bank_account")
 ergebnis["code_score"]    # 5.2  – Note des Modells für den Code, 0–10
-ergebnis["judge_score"]   # 3    – wie gut das Modell als Gutachter war (max. ergebnis["judge_max"], hier 12)
+ergebnis["judge_score"]   # -9   – wie gut das Modell als Gutachter war (max. ergebnis["judge_max"], hier 12)
 ergebnis["gefunden"], ergebnis["fehler_gesamt"], ergebnis["fehlalarme"]   # 2, 6, 1
 ```
 
 - **`prompt`** ist nur der Text der Gruppe, zum Beispiel eine Rolle oder Haltung. Skala, Code mit Zeilennummern und Antwortformat hängt die Funktion selbst an.
 - **`code_score`** ist die gewichtete Note aus den vier ISO-25010-Dimensionen (0–10).
-- **`judge_score`** gibt 2 Punkte für jeden echten Fehler, den das Modell gefunden hat, und zieht 1 Punkt für jeden Fehlalarm ab. Er kann negativ sein.
+- **`judge_score`** gibt 2 Punkte für jeden echten Fehler, den das Modell gefunden hat, zieht 1 Punkt für jeden Fehlalarm und 3 Punkte für jeden übersehenen Fehler ab. Er kann negativ sein.
 - **`modell`**: Jede OpenRouter-ID funktioniert, Standard ist GPT-6 Luna. Mit `modell="mock"` gibt es eine kostenlose Probe ohne `verbinde`, die nicht ans Dashboard geht.
 - **Ground Truth:** `gefunden` gibt an, wie viele der `fehler_gesamt` bekannten Fehler das Modell gefunden hat. `fehlalarme` zählt gemeldete Bugs an Stellen ohne echten Fehler, reine Stil-Hinweise zählen nicht. `judge_max` = 2 × `fehler_gesamt`.
 - **Rückgabe:** ein dict mit `code_score`, `judge_score`, `judge_max`, `gefunden`, `fehler_gesamt`, `fehlalarme`, `snippet`, `komplexitaet`, `modell`, `prompt`, `gruppe`, `einreichung` und `fehler`.
