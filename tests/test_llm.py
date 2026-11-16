@@ -88,8 +88,8 @@ def test_unreachable_server_becomes_error_result():
 
 
 def test_make_client_any_openrouter_id():
-    client = make_client("openai/gpt-6-luna", "sk-test")
-    assert client.provider == "openrouter" and client.model_id == "openai/gpt-6-luna"
+    client = make_client("google/gemini-3.1-flash-lite", "sk-test")
+    assert client.provider == "openrouter" and client.model_id == "google/gemini-3.1-flash-lite"
 
 
 def test_make_client_mock_needs_no_key():
@@ -98,7 +98,7 @@ def test_make_client_mock_needs_no_key():
 
 def test_make_client_missing_key():
     with pytest.raises(ConfigError, match="verbinde"):
-        make_client("openai/gpt-6-luna", "")
+        make_client("google/gemini-3.1-flash-lite", "")
 
 
 def _mock_answer(snippet_id):

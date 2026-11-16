@@ -100,12 +100,12 @@ def test_failed_bewerte_has_no_counts(monkeypatch):
     assert (r["gefunden"], r["fehlalarme"]) == (None, None)
 
 
-def test_bewerte_default_model_is_gpt6_luna(monkeypatch):
+def test_bewerte_default_model_is_gemini_flash(monkeypatch):
     seen = []
     monkeypatch.setattr(bausteine, "make_client", lambda modell, key: seen.append(modell) or FakeClient("{}"))
     bausteine._ZUSTAND.update(gruppe="Gruppe 1", key="sk-test")
-    assert bewerte("x")["modell"] == "openai/gpt-6-luna"
-    assert seen == ["openai/gpt-6-luna"]
+    assert bewerte("x")["modell"] == "google/gemini-3.1-flash-lite"
+    assert seen == ["google/gemini-3.1-flash-lite"]
 
 
 def test_bewerte_unknown_snippet_lists_valid_names():
@@ -202,7 +202,7 @@ def test_bewerte_truncated_answer_says_so(monkeypatch):
 def ergebnis(**overrides):
     base = {"code_score": 5.2, "judge_score": 3, "judge_max": 12, "gefunden": 2, "fehler_gesamt": 6, "fehlalarme": 1,
             "snippet": "bank_account", "komplexitaet": "",
-            "modell": "openai/gpt-6-luna", "prompt": "Sei streng.", "gruppe": "Gruppe 2",
+            "modell": "google/gemini-3.1-flash-lite", "prompt": "Sei streng.", "gruppe": "Gruppe 2",
             "einreichung": "e1", "fehler": None}
     return {**base, **overrides}
 
